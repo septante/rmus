@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+audiotags = "0.5"
+crossterm = "0.28"
+cursive = "0.21"
+cursive_table_view = "0.15"
