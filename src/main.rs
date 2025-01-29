@@ -56,7 +56,7 @@ fn main() {
     });
 
     siv.add_fullscreen_layer(
-        Dialog::around(table.with_name("tracks").min_size((50, 20))).title("Library"),
+        Dialog::around(table.full_screen().with_name("tracks")).title("Library"),
     );
 
     siv.add_global_callback('q', |s| s.quit());
