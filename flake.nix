@@ -28,6 +28,10 @@
       default = mkShell rec {
         buildInputs = [
           rust-bin.stable.latest.default
+
+          # Needed for rodio to work with ALSA
+          pkg-config
+          alsa-lib
         ];
         LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";
       };
