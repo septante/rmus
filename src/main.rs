@@ -1,6 +1,8 @@
-use cursive::{traits::*, views::Dialog};
+use std::{fs, path::Path};
 
+use cursive::{traits::*, views::Dialog};
 use cursive_table_view::{TableView, TableViewItem};
+use dirs;
 
 #[non_exhaustive]
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -36,6 +38,21 @@ impl TableViewItem<Field> for Track {
 }
 
 fn main() {
+    let library_root = dirs::audio_dir().expect("couldn't find music folder");
+    let files = fs::read_dir(library_root)
+        .expect("Error reading directory")
+        .filter(|x| {
+            x.as_ref()
+                .expect("Error getting directory entry")
+                .file_type()
+                .expect("Error getting file type")
+                .is_file()
+        });
+
+    for f in files {
+        println!("Name: {}", f.unwrap().path().display());
+    }
+
     let mut siv = cursive::default();
 
     let mut table = TableView::<Track, Field>::new()
