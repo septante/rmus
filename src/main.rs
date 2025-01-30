@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::io::BufReader;
 use std::{fs, path::PathBuf};
 
 use cursive::{traits::*, views::Dialog};
@@ -102,11 +103,24 @@ fn main() {
 
     table.set_on_submit(|siv, row, index| {
         // Play song
-        todo!()
+        siv.call_on_name("tracks", |v: &mut TableView<Track, Field>| {
+            let (_stream, handle) =
+                rodio::OutputStream::try_default().expect("Error opening rodio output stream");
+            let track = v
+                .borrow_item(index)
+                .expect("Error getting track from table");
+            let file = fs::File::open(track.path.clone()).expect("Error opening file for playback");
+            let sink = rodio::Sink::try_new(&handle).expect("Error creating new sink");
+            sink.append(
+                rodio::Decoder::new(BufReader::new(file)).expect("Error creating new decoder"),
+            );
+            sink.sleep_until_end();
+        })
+        .expect("bad view");
     });
 
     siv.add_fullscreen_layer(
-        Dialog::around(table.full_screen().with_name("tracks")).title("Library"),
+        Dialog::around(table.with_name("tracks").full_screen()).title("Library"),
     );
 
     siv.add_global_callback('q', |s| s.quit());
