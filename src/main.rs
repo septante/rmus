@@ -1,12 +1,16 @@
 use std::borrow::Cow;
+use std::fs;
 use std::io::BufReader;
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
+use std::sync::Arc;
 
+use cursive::CursiveRunnable;
 use cursive::{traits::*, views::Dialog};
 use cursive_table_view::{TableView, TableViewItem};
 use dirs;
 use lofty::prelude::*;
 use lofty::probe::Probe;
+use rodio::OutputStream;
 
 #[non_exhaustive]
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -20,6 +24,19 @@ enum Field {
 struct Track {
     path: PathBuf,
     metadata: Metadata,
+}
+
+#[non_exhaustive]
+#[derive(Clone, Debug)]
+struct Metadata {
+    title: Option<String>,
+    artist: Option<String>,
+}
+
+impl Metadata {
+    fn tag_to_string(tag: Option<Cow<str>>) -> Option<String> {
+        tag.as_deref().map(|x| x.to_owned())
+    }
 }
 
 impl TryFrom<PathBuf> for Track {
@@ -41,19 +58,6 @@ impl TryFrom<PathBuf> for Track {
                 artist: Metadata::tag_to_string(tag.artist()),
             },
         })
-    }
-}
-
-#[non_exhaustive]
-#[derive(Clone, Debug)]
-struct Metadata {
-    title: Option<String>,
-    artist: Option<String>,
-}
-
-impl Metadata {
-    fn tag_to_string(tag: Option<Cow<str>>) -> Option<String> {
-        tag.as_deref().map(|x| x.to_owned())
     }
 }
 
@@ -84,6 +88,78 @@ impl TableViewItem<Field> for Track {
     }
 }
 
+struct Player {
+    // We need to hold the stream to prevent it from being dropped, even if we don't access it otherwise
+    // See https://github.com/RustAudio/rodio/issues/525
+    _stream: OutputStream,
+    ui: Interface,
+}
+
+impl Player {
+    fn new() -> Self {
+        let (stream, handle) =
+            rodio::OutputStream::try_default().expect("Error opening rodio output stream");
+        let sink = rodio::Sink::try_new(&handle).expect("Error creating new sink");
+        let sink_ptr = Arc::new(sink);
+        let mut siv = cursive::default();
+
+        let mut table = TableView::<Track, Field>::new()
+            .column(Field::Title, "Title", |c| c.width_percent(20))
+            .column(Field::Artist, "Artist", |c| c.width_percent(20));
+
+        let sink = sink_ptr.clone();
+        table.set_on_submit(move |siv, _row, index| {
+            // Play song
+            siv.call_on_name("tracks", |v: &mut TableView<Track, Field>| {
+                let track = v
+                    .borrow_item(index)
+                    .expect("Error getting track from table");
+                let file =
+                    fs::File::open(track.path.clone()).expect("Error opening file for playback");
+                sink.append(
+                    rodio::Decoder::new(BufReader::new(file)).expect("Error creating new decoder"),
+                );
+            })
+            .expect("bad view");
+        });
+
+        siv.add_fullscreen_layer(
+            Dialog::around(table.with_name("tracks").full_screen()).title("Library"),
+        );
+
+        siv.add_global_callback('q', |s| s.quit());
+        let sink = sink_ptr.clone();
+        siv.add_global_callback('p', move |_s| {
+            if sink.is_paused() {
+                sink.play();
+            } else {
+                sink.pause();
+            }
+        });
+
+        Player {
+            _stream: stream,
+            ui: Interface { siv },
+        }
+    }
+
+    fn import_tracks(&mut self, tracks: Vec<Track>) {
+        self.ui
+            .siv
+            .call_on_name("tracks", |s: &mut TableView<Track, Field>| {
+                s.set_items(tracks);
+            });
+    }
+
+    fn start(&mut self) {
+        self.ui.siv.run();
+    }
+}
+
+struct Interface {
+    siv: CursiveRunnable,
+}
+
 fn main() {
     let library_root = dirs::audio_dir().expect("couldn't find music folder");
     let files = fs::read_dir(library_root)
@@ -91,38 +167,9 @@ fn main() {
         .flatten()
         .filter(|x| x.file_type().expect("Error getting file type").is_file());
 
-    let tracks = files.map(|f| Track::try_from(f.path())).flatten().collect();
+    let tracks: Vec<_> = files.map(|f| Track::try_from(f.path())).flatten().collect();
 
-    let mut siv = cursive::default();
-
-    let mut table = TableView::<Track, Field>::new()
-        .column(Field::Title, "Title", |c| c.width_percent(20))
-        .column(Field::Artist, "Artist", |c| c.width_percent(20));
-
-    table.set_items(tracks);
-
-    table.set_on_submit(|siv, row, index| {
-        // Play song
-        siv.call_on_name("tracks", |v: &mut TableView<Track, Field>| {
-            let (_stream, handle) =
-                rodio::OutputStream::try_default().expect("Error opening rodio output stream");
-            let track = v
-                .borrow_item(index)
-                .expect("Error getting track from table");
-            let file = fs::File::open(track.path.clone()).expect("Error opening file for playback");
-            let sink = rodio::Sink::try_new(&handle).expect("Error creating new sink");
-            sink.append(
-                rodio::Decoder::new(BufReader::new(file)).expect("Error creating new decoder"),
-            );
-            sink.sleep_until_end();
-        })
-        .expect("bad view");
-    });
-
-    siv.add_fullscreen_layer(
-        Dialog::around(table.with_name("tracks").full_screen()).title("Library"),
-    );
-
-    siv.add_global_callback('q', |s| s.quit());
-    siv.run();
+    let mut player = Player::new();
+    player.import_tracks(tracks);
+    player.start();
 }
