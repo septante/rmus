@@ -182,6 +182,11 @@ impl Player {
             }
         });
 
+        let mut path = dirs::config_dir().expect("Error locating config dir");
+        path.push("minim");
+        path.push("theme.toml");
+        siv.load_theme_file(path).expect("Error loading theme file");
+
         Player {
             _stream: stream,
             ui: Interface { siv },

@@ -1,0 +1,13 @@
+[colors]
+background = "black"
+shadow = "black"
+view = "black"
+primary = "white"
+secondary = "magenta"
+tertiary = "red"
+
+title_primary = "blue"
+title_secondary = "yellow"
+
+highlight = "blue"
+highlight_inactive = "magenta"

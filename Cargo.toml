@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.95"
-cursive = "0.21"
+cursive = { version = "0.21", features = ["toml"] }
 cursive_table_view = "0.15"
 dirs = "6.0.0"
 lofty = "0.22.1"
