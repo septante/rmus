@@ -107,6 +107,17 @@ impl TryFrom<PathBuf> for Track {
 
 impl TableViewItem<Field> for Track {
     fn to_column(&self, column: Field) -> String {
+        if (Field::Title == column)
+            && (self.metadata.field_string(column) == column.default_value())
+        {
+            return self
+                .path
+                .file_name()
+                .expect("No file name has been found!?")
+                .to_str()
+                .expect("File name can't be converted to string.")
+                .to_string();
+        }
         self.metadata.field_string(column)
     }
 
