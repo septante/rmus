@@ -5,11 +5,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, fs};
 
-use anyhow::anyhow;
 use cursive::CursiveRunnable;
 use cursive::{traits::*, views::Dialog};
 use cursive_table_view::{TableView, TableViewItem};
-use dirs;
 use lofty::prelude::*;
 use lofty::probe::Probe;
 use lofty::properties::FileProperties;
@@ -218,7 +216,7 @@ fn main() {
         .flatten()
         .filter(|x| x.file_type().expect("Error getting file type").is_file());
 
-    let tracks: Vec<_> = files.map(|f| Track::try_from(f.path())).flatten().collect();
+    let tracks: Vec<_> = files.flat_map(|f| Track::try_from(f.path())).collect();
 
     let mut player = Player::new();
     player.import_tracks(tracks);
