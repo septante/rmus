@@ -25,8 +25,8 @@ enum Field {
 impl Field {
     fn default_value(&self) -> String {
         match self {
-            Field::Title => "Unknown Title".to_owned(),
-            Field::Artist => "Unknown Artist".to_owned(),
+            Field::Title => "<Unknown Title>".to_owned(),
+            Field::Artist => "<Unknown Artist>".to_owned(),
             _ => "".to_owned(),
         }
     }
