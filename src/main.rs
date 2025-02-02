@@ -1,8 +1,8 @@
 use std::borrow::Cow;
-use std::fs;
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::{fmt, fs};
 
 use cursive::CursiveRunnable;
 use cursive::{traits::*, views::Dialog};
@@ -10,6 +10,8 @@ use cursive_table_view::{TableView, TableViewItem};
 use dirs;
 use lofty::prelude::*;
 use lofty::probe::Probe;
+use lofty::properties::FileProperties;
+use lofty::tag::Tag;
 use rodio::OutputStream;
 
 #[non_exhaustive]
@@ -17,6 +19,61 @@ use rodio::OutputStream;
 enum Field {
     Title,
     Artist,
+    Duration,
+}
+
+impl Field {
+    fn default_value(&self) -> String {
+        match self {
+            Field::Title => "Unknown Title".to_owned(),
+            Field::Artist => "Unknown Artist".to_owned(),
+            _ => "".to_owned(),
+        }
+    }
+}
+
+type FieldData = Option<String>;
+
+#[non_exhaustive]
+#[derive(Clone)]
+struct Metadata {
+    tag: Tag,
+    properties: FileProperties,
+}
+
+impl fmt::Debug for Metadata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl Metadata {
+    fn field_string(&self, field: Field) -> String {
+        match field {
+            Field::Title => Self::unwrap_field(field, Self::tag_to_string(self.tag.title())),
+            Field::Artist => Self::unwrap_field(field, Self::tag_to_string(self.tag.artist())),
+            Field::Duration => {
+                let secs = self.properties.duration().as_secs();
+                let mins = secs / 60;
+                let secs = secs - mins * 60;
+                format!("{mins}:{:0>2}", secs)
+            }
+            #[allow(unreachable_patterns)]
+            _ => "".to_owned(),
+        }
+    }
+
+    fn unwrap_field(field: Field, data: FieldData) -> String {
+        if let Some(s) = data {
+            s.clone()
+        } else {
+            field.default_value()
+        }
+    }
+
+    fn tag_to_string(tag: Option<Cow<str>>) -> Option<String> {
+        tag.as_deref().map(|x| x.to_owned())
+    }
 }
 
 #[non_exhaustive]
@@ -24,19 +81,6 @@ enum Field {
 struct Track {
     path: PathBuf,
     metadata: Metadata,
-}
-
-#[non_exhaustive]
-#[derive(Clone, Debug)]
-struct Metadata {
-    title: Option<String>,
-    artist: Option<String>,
-}
-
-impl Metadata {
-    fn tag_to_string(tag: Option<Cow<str>>) -> Option<String> {
-        tag.as_deref().map(|x| x.to_owned())
-    }
 }
 
 impl TryFrom<PathBuf> for Track {
@@ -50,31 +94,20 @@ impl TryFrom<PathBuf> for Track {
             // first tag we can find. Realistically, a tag reader would likely
             // iterate through the tags to find a suitable one.
             None => tagged_file.first_tag().expect("ERROR: No tags found!"),
-        };
+        }
+        .to_owned();
+        let properties = tagged_file.properties().to_owned();
+
         Ok(Track {
             path,
-            metadata: Metadata {
-                title: Metadata::tag_to_string(tag.title()),
-                artist: Metadata::tag_to_string(tag.artist()),
-            },
+            metadata: Metadata { tag, properties },
         })
     }
 }
 
 impl TableViewItem<Field> for Track {
     fn to_column(&self, column: Field) -> String {
-        match column {
-            Field::Title => self
-                .metadata
-                .title
-                .clone()
-                .unwrap_or("Unknown Title".to_owned()),
-            Field::Artist => self
-                .metadata
-                .artist
-                .clone()
-                .unwrap_or("Unknown Artist".to_owned()),
-        }
+        self.metadata.field_string(column)
     }
 
     fn cmp(&self, other: &Self, column: Field) -> std::cmp::Ordering
@@ -82,8 +115,15 @@ impl TableViewItem<Field> for Track {
         Self: Sized,
     {
         match column {
-            Field::Title => self.metadata.title.cmp(&other.metadata.title),
-            Field::Artist => self.metadata.artist.cmp(&other.metadata.artist),
+            Field::Title | Field::Artist => self
+                .metadata
+                .field_string(column)
+                .cmp(&other.metadata.field_string(column)),
+            Field::Duration => self
+                .metadata
+                .properties
+                .duration()
+                .cmp(&other.metadata.properties.duration()),
         }
     }
 }
@@ -105,7 +145,8 @@ impl Player {
 
         let mut table = TableView::<Track, Field>::new()
             .column(Field::Title, "Title", |c| c.width_percent(20))
-            .column(Field::Artist, "Artist", |c| c.width_percent(20));
+            .column(Field::Artist, "Artist", |c| c.width_percent(20))
+            .column(Field::Duration, "Length", |c| c.width(10));
 
         let sink = sink_ptr.clone();
         table.set_on_submit(move |siv, _row, index| {
