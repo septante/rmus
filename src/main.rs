@@ -128,6 +128,10 @@ impl TableViewItem<Field> for Track {
     }
 }
 
+struct Interface {
+    siv: CursiveRunnable,
+}
+
 struct Player {
     // We need to hold the stream to prevent it from being dropped, even if we don't access it otherwise
     // See https://github.com/RustAudio/rodio/issues/525
@@ -195,10 +199,6 @@ impl Player {
     fn start(&mut self) {
         self.ui.siv.run();
     }
-}
-
-struct Interface {
-    siv: CursiveRunnable,
 }
 
 fn main() {
