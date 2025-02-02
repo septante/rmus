@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use std::{fmt, fs};
 
 use cursive::CursiveRunnable;
@@ -22,18 +23,6 @@ enum Field {
     Duration,
 }
 
-impl Field {
-    fn default_value(&self) -> String {
-        match self {
-            Field::Title => "<Unknown Title>".to_owned(),
-            Field::Artist => "<Unknown Artist>".to_owned(),
-            _ => "".to_owned(),
-        }
-    }
-}
-
-type FieldData = Option<String>;
-
 #[non_exhaustive]
 #[derive(Clone)]
 struct Metadata {
@@ -48,31 +37,20 @@ impl fmt::Debug for Metadata {
 }
 
 impl Metadata {
-    fn field_string(&self, field: Field) -> String {
-        match field {
-            Field::Title => Self::unwrap_field(field, Self::tag_to_string(self.tag.title())),
-            Field::Artist => Self::unwrap_field(field, Self::tag_to_string(self.tag.artist())),
-            Field::Duration => {
-                let secs = self.properties.duration().as_secs();
-                let mins = secs / 60;
-                let secs = secs - mins * 60;
-                format!("{mins}:{:0>2}", secs)
-            }
-            #[allow(unreachable_patterns)]
-            _ => "".to_owned(),
-        }
-    }
-
-    fn unwrap_field(field: Field, data: FieldData) -> String {
-        if let Some(s) = data {
-            s.clone()
-        } else {
-            field.default_value()
-        }
-    }
-
     fn tag_to_string(tag: Option<Cow<str>>) -> Option<String> {
         tag.as_deref().map(|x| x.to_owned())
+    }
+
+    fn title(&self) -> Option<String> {
+        Self::tag_to_string(self.tag.title())
+    }
+
+    fn artist(&self) -> Option<String> {
+        Self::tag_to_string(self.tag.artist())
+    }
+
+    fn duration(&self) -> Duration {
+        self.properties.duration()
     }
 }
 
@@ -81,6 +59,33 @@ impl Metadata {
 struct Track {
     path: PathBuf,
     metadata: Metadata,
+}
+
+impl Track {
+    fn field_string(&self, field: Field) -> String {
+        match field {
+            Field::Title => {
+                if let Some(title) = self.metadata.title() {
+                    title
+                } else {
+                    self.path
+                        .file_name()
+                        .expect("Error getting filename from path")
+                        .to_string_lossy()
+                        .into_owned()
+                }
+            }
+            Field::Artist => self.metadata.artist().unwrap_or_default(),
+            Field::Duration => {
+                let secs = self.metadata.duration().as_secs();
+                let mins = secs / 60;
+                let secs = secs - mins * 60;
+                format!("{mins}:{:0>2}", secs)
+            }
+            #[allow(unreachable_patterns)]
+            _ => "".to_owned(),
+        }
+    }
 }
 
 impl TryFrom<PathBuf> for Track {
@@ -107,7 +112,7 @@ impl TryFrom<PathBuf> for Track {
 
 impl TableViewItem<Field> for Track {
     fn to_column(&self, column: Field) -> String {
-        self.metadata.field_string(column)
+        self.field_string(column)
     }
 
     fn cmp(&self, other: &Self, column: Field) -> std::cmp::Ordering
@@ -115,15 +120,11 @@ impl TableViewItem<Field> for Track {
         Self: Sized,
     {
         match column {
-            Field::Title | Field::Artist => self
-                .metadata
-                .field_string(column)
-                .cmp(&other.metadata.field_string(column)),
-            Field::Duration => self
-                .metadata
-                .properties
-                .duration()
-                .cmp(&other.metadata.properties.duration()),
+            Field::Title | Field::Artist => {
+                // TODO: Clean this up? Sort None values to the bottom
+                self.field_string(column).cmp(&other.field_string(column))
+            }
+            Field::Duration => self.metadata.duration().cmp(&other.metadata.duration()),
         }
     }
 }
