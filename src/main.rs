@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, fs};
 
+use anyhow::anyhow;
 use cursive::CursiveRunnable;
 use cursive::{traits::*, views::Dialog};
 use cursive_table_view::{TableView, TableViewItem};
@@ -93,14 +94,17 @@ impl TryFrom<PathBuf> for Track {
 
     fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
         let tagged_file = Probe::open(&path)?.read()?;
-        let tag = match tagged_file.primary_tag() {
-            Some(primary_tag) => primary_tag,
-            // If the "primary" tag doesn't exist, we just grab the
-            // first tag we can find. Realistically, a tag reader would likely
-            // iterate through the tags to find a suitable one.
-            None => tagged_file.first_tag().expect("ERROR: No tags found!"),
-        }
-        .to_owned();
+
+        // Try to get primary tag, then try to find the first tag, otherwise
+        // generate an empty tag if none exist
+        let tag = if let Some(primary_tag) = tagged_file.primary_tag() {
+            primary_tag.to_owned()
+        } else if let Some(tag) = tagged_file.first_tag() {
+            tag.to_owned()
+        } else {
+            Tag::new(tagged_file.file_type().primary_tag_type())
+        };
+
         let properties = tagged_file.properties().to_owned();
 
         Ok(Track {
