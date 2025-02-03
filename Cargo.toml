@@ -1,7 +1,9 @@
 [package]
 name = "minim"
 version = "0.1.0"
+description = "A lightweight TUI music player"
 edition = "2021"
+license = "AGPL-3.0-only"
 
 [dependencies]
 anyhow = "1.0.95"
