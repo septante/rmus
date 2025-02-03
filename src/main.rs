@@ -32,7 +32,10 @@ struct Metadata {
 
 impl fmt::Debug for Metadata {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        f.debug_struct("Metadata")
+            .field("title", &self.tag.title())
+            .field("artist", &self.tag.artist())
+            .finish_non_exhaustive()
     }
 }
 
