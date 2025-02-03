@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, fs};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context, Result};
 use cursive::CursiveRunnable;
 use cursive::{traits::*, views::Dialog};
 use cursive_table_view::{TableView, TableViewItem};
@@ -144,10 +144,10 @@ struct Player {
 }
 
 impl Player {
-    fn new() -> Self {
+    fn new() -> Result<Self> {
         let (stream, handle) =
-            rodio::OutputStream::try_default().expect("Error opening rodio output stream");
-        let sink = rodio::Sink::try_new(&handle).expect("Error creating new sink");
+            rodio::OutputStream::try_default().context("Error opening rodio output stream")?;
+        let sink = rodio::Sink::try_new(&handle).context("Error creating new sink")?;
         let sink_ptr = Arc::new(sink);
         let mut siv = cursive::default();
 
@@ -198,15 +198,17 @@ impl Player {
                 .expect("Built-in theme broken!");
         }
 
-        player
+        Ok(player)
     }
 
-    fn import_tracks(&mut self, tracks: Vec<Track>) {
+    fn import_tracks(&mut self, tracks: Vec<Track>) -> Result<()> {
         self.ui
             .siv
             .call_on_name("tracks", |s: &mut TableView<Track, Field>| {
                 s.set_items(tracks);
-            });
+            })
+            .ok_or(anyhow!("Couldn't find tracks view while importing files"))?;
+        Ok(())
     }
 
     fn get_user_theme(&mut self) -> anyhow::Result<()> {
@@ -229,16 +231,17 @@ impl Player {
     }
 }
 
-fn main() {
-    let library_root = dirs::audio_dir().expect("couldn't find music folder");
-    let files = fs::read_dir(library_root)
-        .expect("Error reading directory")
+fn main() -> Result<()> {
+    // TODO: allow user to configure library location
+    let library_root = dirs::audio_dir().ok_or(anyhow!("couldn't find music folder"))?;
+    let files = fs::read_dir(library_root)?
         .flatten()
         .filter(|x| x.file_type().expect("Error getting file type").is_file());
 
     let tracks: Vec<_> = files.flat_map(|f| Track::try_from(f.path())).collect();
 
-    let mut player = Player::new();
-    player.import_tracks(tracks);
+    let mut player = Player::new()?;
+    player.import_tracks(tracks)?;
     player.start();
+    Ok(())
 }
