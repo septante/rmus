@@ -190,13 +190,10 @@ impl Player {
             _stream: stream,
             ui: Interface { siv },
         };
-        if player.get_user_theme().is_err() {
-            player
-                .ui
-                .siv
-                .load_toml(include_str!("../theme.toml"))
-                .expect("Built-in theme broken!");
-        }
+
+        player
+            .load_user_theme()
+            .or_else(|_| player.load_default_theme())?;
 
         Ok(player)
     }
@@ -211,19 +208,32 @@ impl Player {
         Ok(())
     }
 
-    fn get_user_theme(&mut self) -> anyhow::Result<()> {
+    fn load_user_theme(&mut self) -> anyhow::Result<()> {
         let mut path = dirs::config_dir().ok_or(anyhow!("Error getting config dir path"))?;
         path.push("minim");
         path.push("theme.toml");
-        let res = self.ui.siv.load_theme_file(path);
 
-        match res {
+        let err: anyhow::Result<()> = match self.ui.siv.load_theme_file(path) {
             Ok(_) => Ok(()),
             Err(e) => match e {
                 cursive::theme::Error::Io(e) => Err(e.into()),
                 cursive::theme::Error::Parse(e) => Err(e.into()),
             },
-        }
+        };
+
+        err.context("Couldn't find user theme, falling back to default")
+    }
+
+    fn load_default_theme(&mut self) -> anyhow::Result<()> {
+        let err: anyhow::Result<()> = match self.ui.siv.load_toml(include_str!("../theme.toml")) {
+            Ok(_) => Ok(()),
+            Err(e) => match e {
+                cursive::theme::Error::Io(e) => Err(e.into()),
+                cursive::theme::Error::Parse(e) => Err(e.into()),
+            },
+        };
+
+        err.context("Failed to load default theme")
     }
 
     fn start(&mut self) {
@@ -234,9 +244,13 @@ impl Player {
 fn main() -> Result<()> {
     // TODO: allow user to configure library location
     let library_root = dirs::audio_dir().ok_or(anyhow!("couldn't find music folder"))?;
-    let files = fs::read_dir(library_root)?
-        .flatten()
-        .filter(|x| x.file_type().expect("Error getting file type").is_file());
+    let files = fs::read_dir(library_root)?.flatten().filter(|f| {
+        if let Ok(file_type) = f.file_type() {
+            file_type.is_file()
+        } else {
+            false
+        }
+    });
 
     let tracks: Vec<_> = files.flat_map(|f| Track::try_from(f.path())).collect();
 
