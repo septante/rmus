@@ -70,7 +70,7 @@ impl Track {
                 } else {
                     self.path
                         .file_name()
-                        .expect("Error getting filename from path")
+                        .expect("Path should be valid, since we imported these files at startup")
                         .to_string_lossy()
                         .into_owned()
                 }
@@ -162,16 +162,18 @@ impl Player {
             siv.call_on_name("tracks", |v: &mut TableView<Track, Field>| {
                 let track = v
                     .borrow_item(index)
-                    .expect("Error getting track from table");
-                let file =
-                    fs::File::open(track.path.clone()).expect("Error opening file for playback");
+                    .expect("Index given by submit event should always be valid");
+                // TODO: handle case where file is removed while player is running, e.g., by prompting user to remove
+                // from library view. This could be useful if we ever switch to persisting the library in a database
+                let file = fs::File::open(track.path.clone())
+                    .expect("Path should be valid, since we imported these files at startup");
 
                 // Add song to queue. TODO: display error message when attempting to open an unsupported file
                 if let Ok(decoder) = rodio::Decoder::new(BufReader::new(file)) {
                     sink.append(decoder);
                 }
             })
-            .expect("bad view");
+            .expect("Couldn't find tracks view?");
         });
 
         siv.add_fullscreen_layer(
@@ -206,7 +208,7 @@ impl Player {
             .call_on_name("tracks", |s: &mut TableView<Track, Field>| {
                 s.set_items(tracks);
             })
-            .ok_or(anyhow!("Couldn't find tracks view while importing files"))?;
+            .ok_or(anyhow!("Couldn't find tracks view while importing files?"))?;
         Ok(())
     }
 
@@ -245,7 +247,7 @@ impl Player {
 
 fn main() -> Result<()> {
     // TODO: allow user to configure library location
-    let library_root = dirs::audio_dir().ok_or(anyhow!("couldn't find music folder"))?;
+    let library_root = dirs::audio_dir().ok_or(anyhow!("Couldn't find music folder"))?;
     let files = fs::read_dir(library_root)?.flatten().filter(|f| {
         if let Ok(file_type) = f.file_type() {
             file_type.is_file()
