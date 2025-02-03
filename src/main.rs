@@ -165,9 +165,11 @@ impl Player {
                     .expect("Error getting track from table");
                 let file =
                     fs::File::open(track.path.clone()).expect("Error opening file for playback");
-                sink.append(
-                    rodio::Decoder::new(BufReader::new(file)).expect("Error creating new decoder"),
-                );
+
+                // Add song to queue. TODO: display error message when attempting to open an unsupported file
+                if let Ok(decoder) = rodio::Decoder::new(BufReader::new(file)) {
+                    sink.append(decoder);
+                }
             })
             .expect("bad view");
         });
