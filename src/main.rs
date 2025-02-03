@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, fs};
 
+use anyhow::anyhow;
 use cursive::CursiveRunnable;
 use cursive::{traits::*, views::Dialog};
 use cursive_table_view::{TableView, TableViewItem};
@@ -185,15 +186,19 @@ impl Player {
             }
         });
 
-        let mut path = dirs::config_dir().expect("Error locating config dir");
-        path.push("minim");
-        path.push("theme.toml");
-        siv.load_theme_file(path).expect("Error loading theme file");
-
-        Player {
+        let mut player = Player {
             _stream: stream,
             ui: Interface { siv },
+        };
+        if player.get_user_theme().is_err() {
+            player
+                .ui
+                .siv
+                .load_toml(include_str!("../theme.toml"))
+                .expect("Built-in theme broken!");
         }
+
+        player
     }
 
     fn import_tracks(&mut self, tracks: Vec<Track>) {
@@ -202,6 +207,21 @@ impl Player {
             .call_on_name("tracks", |s: &mut TableView<Track, Field>| {
                 s.set_items(tracks);
             });
+    }
+
+    fn get_user_theme(&mut self) -> anyhow::Result<()> {
+        let mut path = dirs::config_dir().ok_or(anyhow!("Error getting config dir path"))?;
+        path.push("minim");
+        path.push("theme.toml");
+        let res = self.ui.siv.load_theme_file(path);
+
+        match res {
+            Ok(_) => Ok(()),
+            Err(e) => match e {
+                cursive::theme::Error::Io(e) => Err(e.into()),
+                cursive::theme::Error::Parse(e) => Err(e.into()),
+            },
+        }
     }
 
     fn start(&mut self) {
