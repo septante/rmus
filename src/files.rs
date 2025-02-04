@@ -122,7 +122,9 @@ impl TableViewItem<Field> for Track {
         match column {
             Field::Title | Field::Artist => {
                 // TODO: Clean this up? Sort None values to the bottom
-                self.field_string(column).cmp(&other.field_string(column))
+                self.field_string(column)
+                    .to_lowercase()
+                    .cmp(&other.field_string(column).to_lowercase())
             }
             Field::Duration => self.metadata.duration().cmp(&other.metadata.duration()),
         }
