@@ -4,8 +4,8 @@ use crate::views::{LibraryView, TrackTable};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
+use cursive::traits::*;
 use cursive::CursiveRunnable;
-use cursive::{traits::*, views::Dialog};
 use rodio::OutputStream;
 
 struct Interface {
@@ -29,9 +29,7 @@ impl Player {
 
         let library_view = LibraryView::new(sink_ptr.clone());
 
-        siv.add_fullscreen_layer(
-            Dialog::around(library_view.with_name("library").full_screen()).title("Library"),
-        );
+        siv.add_fullscreen_layer(library_view.with_name("library").full_screen());
 
         siv.add_global_callback('q', |s| s.quit());
         let sink = sink_ptr.clone();

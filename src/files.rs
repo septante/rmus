@@ -38,15 +38,15 @@ impl Metadata {
         tag.as_deref().map(|x| x.to_owned())
     }
 
-    fn title(&self) -> Option<String> {
+    pub(crate) fn title(&self) -> Option<String> {
         Self::tag_to_string(self.tag.title())
     }
 
-    fn artist(&self) -> Option<String> {
+    pub(crate) fn artist(&self) -> Option<String> {
         Self::tag_to_string(self.tag.artist())
     }
 
-    fn duration(&self) -> Duration {
+    pub(crate) fn duration(&self) -> Duration {
         self.properties.duration()
     }
 }
@@ -59,7 +59,7 @@ pub struct Track {
 }
 
 impl Track {
-    fn field_string(&self, field: Field) -> String {
+    pub(crate) fn field_string(&self, field: Field) -> String {
         match field {
             Field::Title => {
                 if let Some(title) = self.metadata.title() {
