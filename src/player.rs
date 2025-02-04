@@ -1,14 +1,11 @@
-use crate::files::{Field, Track};
+use crate::files::Track;
 use crate::views::{LibraryView, TrackTable};
 
-use std::fs;
-use std::io::BufReader;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use cursive::CursiveRunnable;
 use cursive::{traits::*, views::Dialog};
-use cursive_table_view::TableView;
 use rodio::OutputStream;
 
 struct Interface {
