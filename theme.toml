@@ -10,4 +10,4 @@ title_primary = "blue"
 title_secondary = "yellow"
 
 highlight = "blue"
-highlight_inactive = "magenta"
+highlight_inactive = "black"
