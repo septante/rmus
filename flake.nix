@@ -36,5 +36,25 @@
         LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";
       };
     });
+
+    packages = eachSystem ({ pkgs }: with pkgs; {
+      default = rustPlatform.buildRustPackage {
+        pname = "minim";
+        src = ./.;
+        version = "0.1.0";
+
+        cargoLock = {
+          lockFile = ./Cargo.lock;
+        };
+
+        buildInputs = [
+          alsa-lib
+        ];
+
+        nativeBuildInputs = [
+          pkg-config
+        ];
+      };
+    });
   };
 }
