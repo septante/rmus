@@ -30,33 +30,10 @@ impl Player {
         let sink_ptr = Arc::new(sink);
         let mut siv = cursive::default();
 
-        let mut table = TrackTable::new()
-            .column(Field::Title, "Title", |c| c.width_percent(20))
-            .column(Field::Artist, "Artist", |c| c.width_percent(20))
-            .column(Field::Duration, "Length", |c| c.width(10));
-
-        let sink = sink_ptr.clone();
-        table.set_on_submit(move |siv, _row, index| {
-            // Play song
-            siv.call_on_name("tracks", |v: &mut TrackTable| {
-                let track = v
-                    .borrow_item(index)
-                    .expect("Index given by submit event should always be valid");
-                // TODO: handle case where file is removed while player is running, e.g., by prompting user to remove
-                // from library view. This could be useful if we ever switch to persisting the library in a database
-                let file = fs::File::open(track.path.clone())
-                    .expect("Path should be valid, since we imported these files at startup");
-
-                // Add song to queue. TODO: display error message when attempting to open an unsupported file
-                if let Ok(decoder) = rodio::Decoder::new(BufReader::new(file)) {
-                    sink.append(decoder);
-                }
-            })
-            .expect("Couldn't find tracks view?");
-        });
+        let library_view = LibraryView::new(sink_ptr.clone());
 
         siv.add_fullscreen_layer(
-            Dialog::around(table.with_name("tracks").full_screen()).title("Library"),
+            Dialog::around(library_view.with_name("library").full_screen()).title("Library"),
         );
 
         siv.add_global_callback('q', |s| s.quit());
