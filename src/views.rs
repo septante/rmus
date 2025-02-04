@@ -20,8 +20,8 @@ struct LibraryTracksView {
 impl LibraryTracksView {
     pub(crate) fn new(sink: Arc<Sink>) -> Self {
         let mut table = TrackTable::new()
-            .column(Field::Title, "Title", |c| c)
             .column(Field::Artist, "Artist", |c| c)
+            .column(Field::Title, "Title", |c| c)
             .column(Field::Duration, "Length", |c| c.width(10));
 
         table.set_on_submit(move |siv, _row, index| {
