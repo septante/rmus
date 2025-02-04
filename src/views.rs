@@ -9,8 +9,8 @@ use cursive::{
 use cursive_table_view::{TableView, TableViewItem};
 use rodio::Sink;
 
-pub type NamedPanel<T> = Panel<NamedView<T>>;
-pub type TrackTable = TableView<Track, Field>;
+type NamedPanel<T> = Panel<NamedView<T>>;
+pub(crate) type TrackTable = TableView<Track, Field>;
 type NowPlayingTable = TableView<NowPlayingEntry, NowPlayingField>;
 
 struct LibraryTracksView {
@@ -18,7 +18,7 @@ struct LibraryTracksView {
 }
 
 impl LibraryTracksView {
-    pub(crate) fn new(sink: Arc<Sink>) -> Self {
+    fn new(sink: Arc<Sink>) -> Self {
         let mut table = TrackTable::new()
             .column(Field::Artist, "Artist", |c| c)
             .column(Field::Title, "Title", |c| c)

@@ -11,7 +11,7 @@ use lofty::tag::Tag;
 
 #[non_exhaustive]
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub enum Field {
+pub(crate) enum Field {
     Title,
     Artist,
     Duration,

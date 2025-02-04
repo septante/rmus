@@ -1,3 +1,6 @@
-pub mod files;
-pub mod player;
-pub mod views;
+mod files;
+mod player;
+mod views;
+
+pub use files::Track;
+pub use player::Player;

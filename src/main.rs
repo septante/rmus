@@ -1,5 +1,4 @@
-use minim::files::Track;
-use minim::player::Player;
+use minim::{Player, Track};
 
 use std::fs;
 
