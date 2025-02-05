@@ -43,6 +43,13 @@ impl Player {
             }
         });
 
+        let sink = shared_sink.clone();
+        let state = shared_state.clone();
+        siv.add_global_callback('n', move |_| {
+            sink.skip_one();
+            *state.queue_index.lock().unwrap() += 1;
+        });
+
         siv.set_fps(10);
 
         let mut player = Player {
