@@ -7,7 +7,7 @@ secondary = "magenta"
 tertiary = "red"
 
 title_primary = "blue"
-title_secondary = "yellow"
+title_secondary = "white"
 
 highlight = "blue"
 highlight_inactive = "black"

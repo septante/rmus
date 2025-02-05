@@ -1,13 +1,14 @@
 use std::borrow::Cow;
-use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::{cmp, fmt};
 
 use cursive_table_view::TableViewItem;
 use lofty::prelude::*;
 use lofty::probe::Probe;
 use lofty::properties::FileProperties;
 use lofty::tag::Tag;
+use rodio::{Sample, Source};
 
 #[non_exhaustive]
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -15,6 +16,7 @@ pub(crate) enum Field {
     Title,
     Artist,
     Duration,
+    Lyrics,
 }
 
 #[non_exhaustive]
@@ -49,6 +51,13 @@ impl Metadata {
     pub(crate) fn duration(&self) -> Duration {
         self.properties.duration()
     }
+
+    pub(crate) fn lyrics(&self) -> String {
+        self.tag
+            .get_string(&ItemKey::Lyrics)
+            .unwrap_or_default()
+            .to_owned()
+    }
 }
 
 #[non_exhaustive]
@@ -79,6 +88,7 @@ impl Track {
                 let secs = secs - mins * 60;
                 format!("{mins}:{:0>2}", secs)
             }
+            Field::Lyrics => self.metadata.lyrics(),
             #[allow(unreachable_patterns)]
             _ => "".to_owned(),
         }
@@ -154,6 +164,69 @@ impl TableViewItem<Field> for Track {
                     .cmp(&other.field_string(column).to_lowercase())
             }
             Field::Duration => self.metadata.duration().cmp(&other.metadata.duration()),
+            // Don't bother sorting on anything else, since we don't show those columns
+            _ => cmp::Ordering::Equal,
         }
+    }
+}
+
+// https://stackoverflow.com/questions/77876116/how-to-i-detect-when-a-sink-moves-to-the-next-source
+pub(crate) struct WrappedSource<S, F> {
+    source: S,
+    on_track_end: F,
+}
+
+impl<S, F> WrappedSource<S, F> {
+    pub(crate) fn new(source: S, on_track_end: F) -> Self {
+        Self {
+            source,
+            on_track_end,
+        }
+    }
+}
+
+impl<S, F> Iterator for WrappedSource<S, F>
+where
+    S: Source,
+    S::Item: Sample,
+    F: FnMut(),
+{
+    type Item = S::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.source.next() {
+            Some(s) => Some(s),
+            None => {
+                (self.on_track_end)();
+                None
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.source.size_hint()
+    }
+}
+
+impl<S, F> Source for WrappedSource<S, F>
+where
+    S: Source,
+    S::Item: Sample,
+    F: FnMut(),
+{
+    fn current_frame_len(&self) -> Option<usize> {
+        self.source.current_frame_len()
+    }
+
+    fn channels(&self) -> u16 {
+        self.source.channels()
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.source.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        self.source.total_duration()
     }
 }

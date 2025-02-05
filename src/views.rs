@@ -1,14 +1,19 @@
-use crate::files::{Field, Track};
+use crate::files::{Field, Track, WrappedSource};
 
-use std::{fs, io::BufReader, sync::Arc};
+use std::{
+    fs,
+    io::BufReader,
+    sync::{Arc, Mutex},
+};
 
 use cursive::{
     align::HAlign,
     view::{Nameable, Resizable, ViewWrapper},
-    views::{LinearLayout, NamedView, Panel},
+    views::{LinearLayout, NamedView, Panel, TextContent, TextView},
+    View,
 };
 use cursive_table_view::{TableView, TableViewItem};
-use cursive_tabs::TabView;
+use cursive_tabs::TabPanel;
 use rodio::Sink;
 
 type NamedPanel<T> = Panel<NamedView<T>>;
@@ -29,6 +34,8 @@ impl LibraryTracksView {
         table.set_on_submit(move |siv, _row, index| {
             let mut title = String::new();
             let mut valid_file = false;
+            let queue_index = state.queue_index.clone();
+            let queue = state.queue.clone();
 
             // Play song
             siv.call_on_name("tracks", |v: &mut TrackTable| {
@@ -45,7 +52,12 @@ impl LibraryTracksView {
 
                 // Add song to queue. TODO: display error message when attempting to open an unsupported file
                 if let Ok(decoder) = rodio::Decoder::new(BufReader::new(file)) {
-                    state.sink.append(decoder);
+                    let source = WrappedSource::new(decoder, move || {
+                        *queue_index.lock().unwrap() += 1;
+                    });
+                    queue.lock().unwrap().push(track.clone());
+                    state.sink.append(source);
+
                     valid_file = true;
                 }
             })
@@ -155,33 +167,81 @@ impl ViewWrapper for LibraryView {
 }
 
 #[derive(Clone)]
-struct SharedState {
-    sink: Arc<Sink>,
+pub(crate) struct SharedState {
+    pub(crate) sink: Arc<Sink>,
+    pub(crate) queue: Arc<Mutex<Vec<Track>>>,
+    pub(crate) queue_index: Arc<Mutex<usize>>,
 }
 
 impl SharedState {
-    fn new(sink: Arc<Sink>) -> Self {
-        Self { sink }
+    pub(crate) fn new(sink: Arc<Sink>) -> Self {
+        Self {
+            sink,
+            queue: Arc::new(Mutex::new(Vec::new())),
+            queue_index: Arc::new(Mutex::new(0)),
+        }
+    }
+}
+
+struct LyricsView {
+    state: SharedState,
+    content: TextContent,
+    inner: TextView,
+}
+
+impl LyricsView {
+    fn new(state: SharedState) -> Self {
+        let content = TextContent::new("");
+        let view = TextView::new_with_content(content.clone());
+        Self {
+            state,
+            content,
+            inner: view,
+        }
+    }
+
+    // cursive::inner_getters!(self.inner: TextView);
+}
+
+impl ViewWrapper for LyricsView {
+    cursive::wrap_impl!(self.inner: TextView);
+
+    fn wrap_draw(&self, printer: &cursive::Printer) {
+        let queue = self.state.queue.lock().unwrap();
+        let mut content = String::new();
+
+        if let Some(track) = queue.get(*self.state.queue_index.lock().unwrap()) {
+            content = track.field_string(Field::Lyrics);
+        }
+
+        self.content.set_content(content);
+        self.with_view(|v| v.draw(printer));
     }
 }
 
 pub(crate) struct PlayerView {
-    tab_view: TabView,
+    tab_view: TabPanel,
     state: SharedState,
 }
 
 impl PlayerView {
-    pub(crate) fn new(sink: Arc<Sink>) -> Self {
-        let state = SharedState::new(sink);
-        let tab_view =
-            TabView::new().with_tab(LibraryView::new(state.clone()).with_name("Library"));
+    pub(crate) fn new(state: SharedState) -> Self {
+        let mut tab_view = TabPanel::new()
+            .with_tab(LibraryView::new(state.clone()).with_name("Library"))
+            .with_tab(LyricsView::new(state.clone()).with_name("Lyrics"));
+
+        // We can't use .with_active_tab() when constructing because it uses Self as the Err type,
+        // which doesn't implement Debug, meaning we can't call .expect() on it
+        tab_view
+            .set_active_tab("Library")
+            .expect("Setting default tab shouldn't fail");
 
         Self { tab_view, state }
     }
 
-    cursive::inner_getters!(self.tab_view: TabView);
+    cursive::inner_getters!(self.tab_view: TabPanel);
 }
 
 impl ViewWrapper for PlayerView {
-    cursive::wrap_impl!(self.tab_view: TabView);
+    cursive::wrap_impl!(self.tab_view: TabPanel);
 }

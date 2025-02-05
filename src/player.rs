@@ -1,5 +1,5 @@
 use crate::files::Track;
-use crate::views::{PlayerView, TrackTable};
+use crate::views::{PlayerView, SharedState, TrackTable};
 
 use std::sync::Arc;
 
@@ -24,22 +24,26 @@ impl Player {
         let (stream, handle) =
             rodio::OutputStream::try_default().context("Error opening rodio output stream")?;
         let sink = rodio::Sink::try_new(&handle).context("Error creating new sink")?;
-        let sink_ptr = Arc::new(sink);
+        let shared_sink = Arc::new(sink);
         let mut siv = cursive::default();
+        let shared_state = SharedState::new(shared_sink.clone());
 
-        let player_view = PlayerView::new(sink_ptr.clone());
+        let player_view = PlayerView::new(shared_state.clone());
 
         siv.add_fullscreen_layer(player_view.with_name("player").full_screen());
 
         siv.add_global_callback('q', |s| s.quit());
-        let sink = sink_ptr.clone();
-        siv.add_global_callback('p', move |_s| {
+
+        let sink = shared_sink.clone();
+        siv.add_global_callback('p', move |_| {
             if sink.is_paused() {
                 sink.play();
             } else {
                 sink.pause();
             }
         });
+
+        siv.set_fps(10);
 
         let mut player = Player {
             _stream: stream,
