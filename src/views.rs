@@ -8,6 +8,7 @@ use cursive::{
     views::{LinearLayout, NamedView, Panel},
 };
 use cursive_table_view::{TableView, TableViewItem};
+use cursive_tabs::TabView;
 use rodio::Sink;
 
 type NamedPanel<T> = Panel<NamedView<T>>;
@@ -131,7 +132,7 @@ impl ViewWrapper for LibrarySidebarView {
     cursive::wrap_impl!(self.now_playing_view: NamedPanel<NowPlayingTable>);
 }
 
-pub(crate) struct LibraryView {
+struct LibraryView {
     view: LinearLayout,
 }
 
@@ -151,4 +152,21 @@ impl LibraryView {
 
 impl ViewWrapper for LibraryView {
     cursive::wrap_impl!(self.view: LinearLayout);
+}
+
+pub(crate) struct PlayerView {
+    tab_view: TabView,
+}
+
+impl PlayerView {
+    pub(crate) fn new(sink: Arc<Sink>) -> Self {
+        let tab_view = TabView::new().with_tab(LibraryView::new(sink).with_name("Library"));
+        Self { tab_view }
+    }
+
+    cursive::inner_getters!(self.tab_view: TabView);
+}
+
+impl ViewWrapper for PlayerView {
+    cursive::wrap_impl!(self.tab_view: TabView);
 }

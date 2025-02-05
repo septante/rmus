@@ -1,5 +1,5 @@
 use crate::files::Track;
-use crate::views::{LibraryView, TrackTable};
+use crate::views::{PlayerView, TrackTable};
 
 use std::sync::Arc;
 
@@ -27,9 +27,9 @@ impl Player {
         let sink_ptr = Arc::new(sink);
         let mut siv = cursive::default();
 
-        let library_view = LibraryView::new(sink_ptr.clone());
+        let player_view = PlayerView::new(sink_ptr.clone());
 
-        siv.add_fullscreen_layer(library_view.with_name("library").full_screen());
+        siv.add_fullscreen_layer(player_view.with_name("player").full_screen());
 
         siv.add_global_callback('q', |s| s.quit());
         let sink = sink_ptr.clone();
