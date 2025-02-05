@@ -3,6 +3,7 @@ use crate::files::{Field, Track};
 use std::{fs, io::BufReader, sync::Arc};
 
 use cursive::{
+    align::HAlign,
     view::{Nameable, Resizable, ViewWrapper},
     views::{LinearLayout, NamedView, Panel},
 };
@@ -111,7 +112,9 @@ struct LibrarySidebarView {
 impl LibrarySidebarView {
     fn new() -> Self {
         let table = TableView::new()
-            .column(NowPlayingField::Index, "#", |c| c.width(5))
+            .column(NowPlayingField::Index, "", |c| {
+                c.width(4).align(HAlign::Right)
+            })
             .column(NowPlayingField::Title, "Track", |c| c);
 
         let panel = Panel::new(table.with_name("now_playing"));
