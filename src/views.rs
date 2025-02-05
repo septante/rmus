@@ -8,8 +8,8 @@ use std::{
 
 use cursive::{
     align::HAlign,
-    view::{Nameable, Resizable, ViewWrapper},
-    views::{LinearLayout, NamedView, Panel, TextContent, TextView},
+    view::{Nameable, Resizable, Scrollable, ViewWrapper},
+    views::{LinearLayout, NamedView, Panel, ScrollView, TextContent, TextView},
     View,
 };
 use cursive_table_view::{TableView, TableViewItem};
@@ -18,6 +18,7 @@ use rodio::Sink;
 
 pub(crate) type TrackTable = TableView<Track, Field>;
 
+type ScrollNamedText = ScrollView<NamedView<TextView>>;
 type NamedPanel<T> = Panel<NamedView<T>>;
 type QueueTable = TableView<QueueEntry, QueueField>;
 
@@ -188,13 +189,15 @@ impl SharedState {
 struct LyricsView {
     state: SharedState,
     content: TextContent,
-    inner: TextView,
+    inner: ScrollNamedText,
 }
 
 impl LyricsView {
     fn new(state: SharedState) -> Self {
         let content = TextContent::new("");
-        let view = TextView::new_with_content(content.clone());
+        let view = TextView::new_with_content(content.clone())
+            .with_name("lyrics")
+            .scrollable();
         Self {
             state,
             content,
@@ -202,11 +205,11 @@ impl LyricsView {
         }
     }
 
-    // cursive::inner_getters!(self.inner: TextView);
+    cursive::inner_getters!(self.inner: ScrollNamedText);
 }
 
 impl ViewWrapper for LyricsView {
-    cursive::wrap_impl!(self.inner: TextView);
+    cursive::wrap_impl!(self.inner: ScrollNamedText);
 
     fn wrap_draw(&self, printer: &cursive::Printer) {
         let queue = self.state.queue.lock().unwrap();
