@@ -20,7 +20,7 @@ struct LibraryTracksView {
 }
 
 impl LibraryTracksView {
-    fn new(sink: Arc<Sink>) -> Self {
+    fn new(state: SharedState) -> Self {
         let mut table = TrackTable::new()
             .column(Field::Artist, "Artist", |c| c)
             .column(Field::Title, "Title", |c| c)
@@ -45,7 +45,7 @@ impl LibraryTracksView {
 
                 // Add song to queue. TODO: display error message when attempting to open an unsupported file
                 if let Ok(decoder) = rodio::Decoder::new(BufReader::new(file)) {
-                    sink.append(decoder);
+                    state.sink.append(decoder);
                     valid_file = true;
                 }
             })
@@ -111,7 +111,7 @@ struct LibrarySidebarView {
 }
 
 impl LibrarySidebarView {
-    fn new() -> Self {
+    fn new(state: SharedState) -> Self {
         let table = TableView::new()
             .column(NowPlayingField::Index, "", |c| {
                 c.width(4).align(HAlign::Right)
@@ -137,10 +137,10 @@ struct LibraryView {
 }
 
 impl LibraryView {
-    pub(crate) fn new(sink: Arc<Sink>) -> Self {
+    pub(crate) fn new(state: SharedState) -> Self {
         let linear_layout = LinearLayout::horizontal()
-            .child(LibraryTracksView::new(sink).full_screen())
-            .child(LibrarySidebarView::new().min_width(40));
+            .child(LibraryTracksView::new(state.clone()).full_screen())
+            .child(LibrarySidebarView::new(state.clone()).min_width(40));
 
         Self {
             view: linear_layout,
@@ -154,14 +154,29 @@ impl ViewWrapper for LibraryView {
     cursive::wrap_impl!(self.view: LinearLayout);
 }
 
+#[derive(Clone)]
+struct SharedState {
+    sink: Arc<Sink>,
+}
+
+impl SharedState {
+    fn new(sink: Arc<Sink>) -> Self {
+        Self { sink }
+    }
+}
+
 pub(crate) struct PlayerView {
     tab_view: TabView,
+    state: SharedState,
 }
 
 impl PlayerView {
     pub(crate) fn new(sink: Arc<Sink>) -> Self {
-        let tab_view = TabView::new().with_tab(LibraryView::new(sink).with_name("Library"));
-        Self { tab_view }
+        let state = SharedState::new(sink);
+        let tab_view =
+            TabView::new().with_tab(LibraryView::new(state.clone()).with_name("Library"));
+
+        Self { tab_view, state }
     }
 
     cursive::inner_getters!(self.tab_view: TabView);
