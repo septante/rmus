@@ -21,7 +21,7 @@ pub(crate) type TrackTable = TableView<Track, Field>;
 type NowPlayingTable = TableView<NowPlayingEntry, NowPlayingField>;
 
 struct LibraryTracksView {
-    table: NamedPanel<TrackTable>,
+    inner: NamedPanel<TrackTable>,
 }
 
 impl LibraryTracksView {
@@ -77,14 +77,14 @@ impl LibraryTracksView {
 
         let panel = Panel::new(table.with_name("tracks"));
 
-        Self { table: panel }
+        Self { inner: panel }
     }
 
-    cursive::inner_getters!(self.table: NamedPanel<TrackTable>);
+    cursive::inner_getters!(self.inner: NamedPanel<TrackTable>);
 }
 
 impl ViewWrapper for LibraryTracksView {
-    cursive::wrap_impl!(self.table: NamedPanel<TrackTable>);
+    cursive::wrap_impl!(self.inner: NamedPanel<TrackTable>);
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -119,7 +119,7 @@ impl TableViewItem<NowPlayingField> for NowPlayingEntry {
 }
 
 struct LibrarySidebarView {
-    now_playing_view: NamedPanel<NowPlayingTable>,
+    inner: NamedPanel<NowPlayingTable>,
 }
 
 impl LibrarySidebarView {
@@ -132,20 +132,18 @@ impl LibrarySidebarView {
 
         let panel = Panel::new(table.with_name("now_playing"));
 
-        Self {
-            now_playing_view: panel,
-        }
+        Self { inner: panel }
     }
 
-    cursive::inner_getters!(self.now_playing_view: NamedPanel<NowPlayingTable>);
+    cursive::inner_getters!(self.inner: NamedPanel<NowPlayingTable>);
 }
 
 impl ViewWrapper for LibrarySidebarView {
-    cursive::wrap_impl!(self.now_playing_view: NamedPanel<NowPlayingTable>);
+    cursive::wrap_impl!(self.inner: NamedPanel<NowPlayingTable>);
 }
 
 struct LibraryView {
-    view: LinearLayout,
+    inner: LinearLayout,
 }
 
 impl LibraryView {
@@ -155,15 +153,15 @@ impl LibraryView {
             .child(LibrarySidebarView::new(state.clone()).min_width(40));
 
         Self {
-            view: linear_layout,
+            inner: linear_layout,
         }
     }
 
-    cursive::inner_getters!(self.view: LinearLayout);
+    cursive::inner_getters!(self.inner: LinearLayout);
 }
 
 impl ViewWrapper for LibraryView {
-    cursive::wrap_impl!(self.view: LinearLayout);
+    cursive::wrap_impl!(self.inner: LinearLayout);
 }
 
 #[derive(Clone)]
@@ -220,7 +218,7 @@ impl ViewWrapper for LyricsView {
 }
 
 pub(crate) struct PlayerView {
-    tab_view: TabPanel,
+    inner: TabPanel,
     state: SharedState,
 }
 
@@ -236,12 +234,15 @@ impl PlayerView {
             .set_active_tab("Library")
             .expect("Setting default tab shouldn't fail");
 
-        Self { tab_view, state }
+        Self {
+            inner: tab_view,
+            state,
+        }
     }
 
-    cursive::inner_getters!(self.tab_view: TabPanel);
+    cursive::inner_getters!(self.inner: TabPanel);
 }
 
 impl ViewWrapper for PlayerView {
-    cursive::wrap_impl!(self.tab_view: TabPanel);
+    cursive::wrap_impl!(self.inner: TabPanel);
 }
