@@ -62,14 +62,15 @@ impl LibraryTracksView {
                     valid_file = true;
                 }
             })
-            .expect("Couldn't find tracks view?");
+            .expect("tracks view must exist");
 
             if valid_file {
                 // Add to queue list
                 siv.call_on_name("queue_list", |v: &mut QueueTable| {
+                    let queue = queue.lock().unwrap();
                     v.insert_item(QueueEntry {
                         index: v.len() + 1,
-                        title,
+                        track: queue.last().unwrap().clone(),
                     })
                 })
                 .expect("queue_list view must exist");
@@ -91,20 +92,21 @@ impl ViewWrapper for LibraryTracksView {
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct QueueEntry {
     index: usize,
-    title: String,
+    track: Track,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum QueueField {
     Index,
-    Title,
+
+    Track,
 }
 
 impl TableViewItem<QueueField> for QueueEntry {
     fn to_column(&self, column: QueueField) -> String {
         match column {
             QueueField::Index => format!("{}", self.index),
-            QueueField::Title => self.title.clone(),
+            QueueField::Track => self.track.field_string(Field::Title),
         }
     }
 
@@ -114,7 +116,10 @@ impl TableViewItem<QueueField> for QueueEntry {
     {
         match column {
             QueueField::Index => self.index.cmp(&other.index),
-            QueueField::Title => self.title.cmp(&other.title),
+            QueueField::Track => self
+                .track
+                .field_string(Field::Title)
+                .cmp(&other.track.field_string(Field::Title)),
         }
     }
 }
@@ -127,7 +132,7 @@ impl LibrarySidebarView {
     fn new(state: SharedState) -> Self {
         let table = TableView::new()
             .column(QueueField::Index, "", |c| c.width(4).align(HAlign::Right))
-            .column(QueueField::Title, "Track", |c| c);
+            .column(QueueField::Track, "Track", |c| c);
 
         let panel = Panel::new(table.with_name("queue_list"));
 

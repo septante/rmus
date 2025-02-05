@@ -67,6 +67,20 @@ pub struct Track {
     pub(crate) metadata: Metadata,
 }
 
+impl PartialEq for Track {
+    fn eq(&self, other: &Self) -> bool {
+        self.path.eq(&other.path)
+    }
+}
+
+impl Eq for Track {}
+
+impl std::hash::Hash for Track {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.path.hash(state)
+    }
+}
+
 impl Track {
     pub(crate) fn field_string(&self, field: Field) -> String {
         match field {
