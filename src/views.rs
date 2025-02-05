@@ -16,9 +16,10 @@ use cursive_table_view::{TableView, TableViewItem};
 use cursive_tabs::TabPanel;
 use rodio::Sink;
 
-type NamedPanel<T> = Panel<NamedView<T>>;
 pub(crate) type TrackTable = TableView<Track, Field>;
-type NowPlayingTable = TableView<NowPlayingEntry, NowPlayingField>;
+
+type NamedPanel<T> = Panel<NamedView<T>>;
+type QueueTable = TableView<QueueEntry, QueueField>;
 
 struct LibraryTracksView {
     inner: NamedPanel<TrackTable>,
@@ -64,14 +65,14 @@ impl LibraryTracksView {
             .expect("Couldn't find tracks view?");
 
             if valid_file {
-                // Add to now playing list
-                siv.call_on_name("now_playing", |v: &mut NowPlayingTable| {
-                    v.insert_item(NowPlayingEntry {
+                // Add to queue list
+                siv.call_on_name("queue_list", |v: &mut QueueTable| {
+                    v.insert_item(QueueEntry {
                         index: v.len() + 1,
                         title,
                     })
                 })
-                .expect("Couldn't find now_playing view");
+                .expect("queue_list view must exist");
             }
         });
 
@@ -88,58 +89,56 @@ impl ViewWrapper for LibraryTracksView {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-struct NowPlayingEntry {
+struct QueueEntry {
     index: usize,
     title: String,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
-enum NowPlayingField {
+enum QueueField {
     Index,
     Title,
 }
 
-impl TableViewItem<NowPlayingField> for NowPlayingEntry {
-    fn to_column(&self, column: NowPlayingField) -> String {
+impl TableViewItem<QueueField> for QueueEntry {
+    fn to_column(&self, column: QueueField) -> String {
         match column {
-            NowPlayingField::Index => format!("{}", self.index),
-            NowPlayingField::Title => self.title.clone(),
+            QueueField::Index => format!("{}", self.index),
+            QueueField::Title => self.title.clone(),
         }
     }
 
-    fn cmp(&self, other: &Self, column: NowPlayingField) -> std::cmp::Ordering
+    fn cmp(&self, other: &Self, column: QueueField) -> std::cmp::Ordering
     where
         Self: Sized,
     {
         match column {
-            NowPlayingField::Index => self.index.cmp(&other.index),
-            NowPlayingField::Title => self.title.cmp(&other.title),
+            QueueField::Index => self.index.cmp(&other.index),
+            QueueField::Title => self.title.cmp(&other.title),
         }
     }
 }
 
 struct LibrarySidebarView {
-    inner: NamedPanel<NowPlayingTable>,
+    inner: NamedPanel<QueueTable>,
 }
 
 impl LibrarySidebarView {
     fn new(state: SharedState) -> Self {
         let table = TableView::new()
-            .column(NowPlayingField::Index, "", |c| {
-                c.width(4).align(HAlign::Right)
-            })
-            .column(NowPlayingField::Title, "Track", |c| c);
+            .column(QueueField::Index, "", |c| c.width(4).align(HAlign::Right))
+            .column(QueueField::Title, "Track", |c| c);
 
-        let panel = Panel::new(table.with_name("now_playing"));
+        let panel = Panel::new(table.with_name("queue_list"));
 
         Self { inner: panel }
     }
 
-    cursive::inner_getters!(self.inner: NamedPanel<NowPlayingTable>);
+    cursive::inner_getters!(self.inner: NamedPanel<QueueTable>);
 }
 
 impl ViewWrapper for LibrarySidebarView {
-    cursive::wrap_impl!(self.inner: NamedPanel<NowPlayingTable>);
+    cursive::wrap_impl!(self.inner: NamedPanel<QueueTable>);
 }
 
 struct LibraryView {
@@ -147,7 +146,7 @@ struct LibraryView {
 }
 
 impl LibraryView {
-    pub(crate) fn new(state: SharedState) -> Self {
+    fn new(state: SharedState) -> Self {
         let linear_layout = LinearLayout::horizontal()
             .child(LibraryTracksView::new(state.clone()).full_screen())
             .child(LibrarySidebarView::new(state.clone()).min_width(40));
