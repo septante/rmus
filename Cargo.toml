@@ -12,3 +12,4 @@ cursive_table_view = "0.15"
 dirs = "6.0.0"
 lofty = "0.22.1"
 rodio = { version = "0.20.1", default-features = false, features = ["symphonia-all"] }
+walkdir = "2.5.0"

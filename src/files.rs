@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use cursive_table_view::TableViewItem;
@@ -82,6 +82,33 @@ impl Track {
             #[allow(unreachable_patterns)]
             _ => "".to_owned(),
         }
+    }
+}
+
+// Can't add generic implementation for AsRef<Path> :(
+// https://github.com/rust-lang/rust/issues/50133
+impl TryFrom<&Path> for Track {
+    type Error = anyhow::Error;
+
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        let tagged_file = Probe::open(path)?.read()?;
+
+        // Try to get primary tag, then try to find the first tag, otherwise
+        // generate an empty tag if none exist
+        let tag = if let Some(primary_tag) = tagged_file.primary_tag() {
+            primary_tag.to_owned()
+        } else if let Some(tag) = tagged_file.first_tag() {
+            tag.to_owned()
+        } else {
+            Tag::new(tagged_file.file_type().primary_tag_type())
+        };
+
+        let properties = tagged_file.properties().to_owned();
+
+        Ok(Track {
+            path: path.to_path_buf(),
+            metadata: Metadata { tag, properties },
+        })
     }
 }
 

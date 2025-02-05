@@ -729,6 +729,7 @@ dependencies = [
  "dirs",
  "lofty",
  "rodio",
+ "walkdir",
 ]
 
 [[package]]
