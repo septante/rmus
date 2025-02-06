@@ -115,24 +115,7 @@ impl TryFrom<&Path> for Track {
     type Error = anyhow::Error;
 
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        let tagged_file = Probe::open(path)?.read()?;
-
-        // Try to get primary tag, then try to find the first tag, otherwise
-        // generate an empty tag if none exist
-        let tag = if let Some(primary_tag) = tagged_file.primary_tag() {
-            primary_tag.to_owned()
-        } else if let Some(tag) = tagged_file.first_tag() {
-            tag.to_owned()
-        } else {
-            Tag::new(tagged_file.file_type().primary_tag_type())
-        };
-
-        let properties = tagged_file.properties().to_owned();
-
-        Ok(Track {
-            path: path.to_path_buf(),
-            metadata: Metadata { tag, properties },
-        })
+        Self::try_from(path.to_path_buf())
     }
 }
 
