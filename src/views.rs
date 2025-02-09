@@ -1,21 +1,27 @@
 use crate::files::{Field, Track, WrappedSource};
 
 use std::{
+    collections::VecDeque,
     fs,
     io::BufReader,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
+use anyhow::{anyhow, Result};
 use cursive::{
     align::HAlign,
-    view::{Nameable, Resizable, Scrollable, Selector, ViewWrapper},
+    event::EventResult,
+    view::{Finder, Nameable, Resizable, Scrollable, Selector, ViewWrapper},
     views::{LinearLayout, NamedView, Panel, ScrollView, TextContent, TextView},
     View,
 };
 use cursive_table_view::{TableView, TableViewItem};
 use cursive_tabs::TabPanel;
 use rodio::Sink;
+use walkdir::WalkDir;
 
+pub(crate) static LIBRARY_TRACKS_VIEW_SELECTOR: Selector = Selector::Name("library_tracks");
 pub(crate) const TRACKS_TABLE_VIEW_SELECTOR: Selector = Selector::Name("tracks");
 pub(crate) const QUEUE_VIEW_SELECTOR: Selector = Selector::Name("queue_list");
 
@@ -27,6 +33,7 @@ type QueueTable = TableView<QueueEntry, QueueField>;
 
 struct LibraryTracksView {
     inner: NamedPanel<TrackTable>,
+    state: SharedState,
 }
 
 impl LibraryTracksView {
@@ -36,11 +43,13 @@ impl LibraryTracksView {
             .column(Field::Title, "Title", |c| c)
             .column(Field::Duration, "Length", |c| c.width(10));
 
+        let state2 = state.clone();
+
         table.set_on_submit(move |siv, _row, index| {
             let mut title = String::new();
             let mut valid_file = false;
-            let queue_index = state.queue_index.clone();
-            let queue = state.queue.clone();
+            let queue_index = state2.queue_index.clone();
+            let queue = state2.queue.clone();
 
             // Play song
             siv.call_on(&TRACKS_TABLE_VIEW_SELECTOR, |v: &mut TrackTable| {
@@ -61,7 +70,7 @@ impl LibraryTracksView {
                         *queue_index.lock().unwrap() += 1;
                     });
                     queue.lock().unwrap().push(track.clone());
-                    state.sink.append(source);
+                    state2.sink.append(source);
 
                     valid_file = true;
                 }
@@ -83,7 +92,26 @@ impl LibraryTracksView {
 
         let panel = Panel::new(table.with_name("tracks"));
 
-        Self { inner: panel }
+        Self {
+            inner: panel,
+            state,
+        }
+    }
+
+    fn import_track(&mut self, track: Track) -> Result<()> {
+        self.call_on(&TRACKS_TABLE_VIEW_SELECTOR, |s: &mut TrackTable| {
+            s.insert_item(track);
+        })
+        .ok_or(anyhow!("Couldn't find tracks view while importing files?"))
+    }
+
+    fn import_tracks(&mut self, tracks: &mut Vec<Track>) -> Result<()> {
+        self.call_on(&TRACKS_TABLE_VIEW_SELECTOR, |s: &mut TrackTable| {
+            let mut items = s.take_items();
+            items.append(tracks);
+            s.set_items(items);
+        })
+        .ok_or(anyhow!("Couldn't find tracks view while importing files?"))
     }
 
     cursive::inner_getters!(self.inner: NamedPanel<TrackTable>);
@@ -157,7 +185,11 @@ struct LibraryView {
 impl LibraryView {
     fn new(state: SharedState) -> Self {
         let linear_layout = LinearLayout::horizontal()
-            .child(LibraryTracksView::new(state.clone()).full_screen())
+            .child(
+                LibraryTracksView::new(state.clone())
+                    .with_name("library_tracks")
+                    .full_screen(),
+            )
             .child(LibrarySidebarView::new(state.clone()).min_width(40));
 
         Self {
@@ -177,6 +209,7 @@ pub(crate) struct SharedState {
     pub(crate) sink: Arc<Sink>,
     pub(crate) queue: Arc<Mutex<Vec<Track>>>,
     pub(crate) queue_index: Arc<Mutex<usize>>,
+    pub(crate) import_queue: Arc<Mutex<VecDeque<PathBuf>>>,
 }
 
 impl SharedState {
@@ -185,6 +218,7 @@ impl SharedState {
             sink,
             queue: Arc::new(Mutex::new(Vec::new())),
             queue_index: Arc::new(Mutex::new(0)),
+            import_queue: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 }
@@ -250,9 +284,47 @@ impl PlayerView {
         }
     }
 
+    pub(crate) fn add_library_root(&mut self, library_root: PathBuf) {
+        let files = WalkDir::new(library_root)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|f| f.file_type().is_file())
+            .map(|f| f.into_path());
+
+        self.state
+            .import_queue
+            .lock()
+            .unwrap()
+            .append(&mut files.collect::<VecDeque<PathBuf>>());
+    }
+
     cursive::inner_getters!(self.inner: TabPanel);
 }
 
 impl ViewWrapper for PlayerView {
     cursive::wrap_impl!(self.inner: TabPanel);
+
+    fn wrap_on_event(&mut self, ch: cursive::event::Event) -> EventResult {
+        if ch == cursive::event::Event::Refresh {
+            // Pull next chunk from import queue and add them to table
+            let binding = self.state.import_queue.clone();
+            let mut queue = binding.lock().unwrap();
+            let len = queue.len();
+
+            if len != 0 {
+                let files = queue.drain(..(std::cmp::min(100, len)));
+                let mut tracks = files.flat_map(Track::try_from).collect();
+                self.call_on(
+                    &LIBRARY_TRACKS_VIEW_SELECTOR,
+                    |s: &mut LibraryTracksView| {
+                        s.import_tracks(&mut tracks).unwrap();
+                    },
+                )
+                .expect("Library tracks view must exist!");
+            }
+        }
+        // Default implementation
+        self.with_view_mut(|v| v.on_event(ch))
+            .unwrap_or(EventResult::Ignored)
+    }
 }

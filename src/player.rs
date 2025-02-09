@@ -1,6 +1,6 @@
-use crate::files::Track;
-use crate::views::{PlayerView, SharedState, TrackTable, TRACKS_TABLE_VIEW_SELECTOR};
+use crate::views::{PlayerView, SharedState};
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
@@ -20,7 +20,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new() -> Result<Self> {
+    pub fn new(library_root: PathBuf) -> Result<Self> {
         let (stream, handle) =
             rodio::OutputStream::try_default().context("Error opening rodio output stream")?;
         let sink = rodio::Sink::try_new(&handle).context("Error creating new sink")?;
@@ -28,7 +28,8 @@ impl Player {
         let mut siv = cursive::default();
         let shared_state = SharedState::new(shared_sink.clone());
 
-        let player_view = PlayerView::new(shared_state.clone());
+        let mut player_view = PlayerView::new(shared_state.clone());
+        player_view.add_library_root(library_root);
 
         siv.add_fullscreen_layer(player_view.with_name("player").full_screen());
 
@@ -64,16 +65,6 @@ impl Player {
         Ok(player)
     }
 
-    pub fn import_tracks(&mut self, tracks: Vec<Track>) -> Result<()> {
-        self.ui
-            .siv
-            .call_on(&TRACKS_TABLE_VIEW_SELECTOR, |s: &mut TrackTable| {
-                s.set_items(tracks);
-            })
-            .ok_or(anyhow!("Couldn't find tracks view while importing files?"))?;
-        Ok(())
-    }
-
     fn load_user_theme(&mut self) -> anyhow::Result<()> {
         let mut path = dirs::config_dir().ok_or(anyhow!("Error getting config dir path"))?;
         path.push("minim");
@@ -102,7 +93,8 @@ impl Player {
         err.context("Failed to load default theme")
     }
 
-    pub fn start(&mut self) {
+    pub fn start(&mut self) -> Result<()> {
         self.ui.siv.run();
+        Ok(())
     }
 }
