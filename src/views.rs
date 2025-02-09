@@ -8,13 +8,16 @@ use std::{
 
 use cursive::{
     align::HAlign,
-    view::{Nameable, Resizable, Scrollable, ViewWrapper},
+    view::{Nameable, Resizable, Scrollable, Selector, ViewWrapper},
     views::{LinearLayout, NamedView, Panel, ScrollView, TextContent, TextView},
     View,
 };
 use cursive_table_view::{TableView, TableViewItem};
 use cursive_tabs::TabPanel;
 use rodio::Sink;
+
+pub(crate) static TRACKS_TABLE_VIEW_SELECTOR: Selector = Selector::Name("tracks");
+pub(crate) static QUEUE_VIEW_SELECTOR: Selector = Selector::Name("queue_list");
 
 pub(crate) type TrackTable = TableView<Track, Field>;
 
@@ -40,7 +43,7 @@ impl LibraryTracksView {
             let queue = state.queue.clone();
 
             // Play song
-            siv.call_on_name("tracks", |v: &mut TrackTable| {
+            siv.call_on(&TRACKS_TABLE_VIEW_SELECTOR, |v: &mut TrackTable| {
                 let track = v
                     .borrow_item(index)
                     .expect("Index given by submit event should always be valid");
@@ -67,14 +70,14 @@ impl LibraryTracksView {
 
             if valid_file {
                 // Add to queue list
-                siv.call_on_name("queue_list", |v: &mut QueueTable| {
+                siv.call_on(&QUEUE_VIEW_SELECTOR, |v: &mut QueueTable| {
                     let queue = queue.lock().unwrap();
                     v.insert_item(QueueEntry {
                         index: v.len() + 1,
                         track: queue.last().unwrap().clone(),
                     })
                 })
-                .expect("queue_list view must exist");
+                .expect("queue list view must exist");
             }
         });
 

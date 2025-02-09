@@ -1,5 +1,5 @@
 use crate::files::Track;
-use crate::views::{PlayerView, SharedState, TrackTable};
+use crate::views::{PlayerView, SharedState, TrackTable, TRACKS_TABLE_VIEW_SELECTOR};
 
 use std::sync::Arc;
 
@@ -67,7 +67,7 @@ impl Player {
     pub fn import_tracks(&mut self, tracks: Vec<Track>) -> Result<()> {
         self.ui
             .siv
-            .call_on_name("tracks", |s: &mut TrackTable| {
+            .call_on(&TRACKS_TABLE_VIEW_SELECTOR, |s: &mut TrackTable| {
                 s.set_items(tracks);
             })
             .ok_or(anyhow!("Couldn't find tracks view while importing files?"))?;
