@@ -16,6 +16,9 @@ use walkdir::WalkDir;
 #[derive(Parser, Debug)]
 #[command(version, about)]
 pub struct Args {
+    /// Where the player should look for files
+    pub dir: Option<String>,
+
     /// Reset library cache
     #[arg(short = 'c', long = "clean")]
     disable_cache: bool,
@@ -45,6 +48,13 @@ impl Player {
 
         let player_view = PlayerView::new(shared_state.clone());
 
+        let library_root;
+        if let Some(ref dir) = args.dir {
+            library_root = PathBuf::from_str(dir).expect("Shouldn't fail");
+        } else {
+            library_root = dirs::audio_dir().ok_or(anyhow!("Couldn't find music folder"))?;
+        }
+
         siv.add_fullscreen_layer(player_view.with_name("player").full_screen());
 
         siv.add_global_callback('q', |s| s.quit());
@@ -71,7 +81,7 @@ impl Player {
         let mut player = Player {
             _stream: stream,
             args,
-            library_root: PathBuf::from_str(".").unwrap(),
+            library_root,
             ui: Interface { siv },
         };
 
@@ -80,10 +90,6 @@ impl Player {
             .or_else(|_| player.load_default_theme())?;
 
         Ok(player)
-    }
-
-    pub fn set_library_root(&mut self, dir: &PathBuf) {
-        self.library_root = dir.to_owned();
     }
 
     fn get_tracks_from_disk(&self) -> Vec<Track> {
