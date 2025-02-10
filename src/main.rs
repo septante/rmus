@@ -7,6 +7,5 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let mut player = Player::new(args)?;
 
-    player.run()?;
-    Ok(())
+    player.run()
 }
