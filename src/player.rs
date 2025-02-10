@@ -2,12 +2,15 @@ use crate::files::Track;
 use crate::views::{PlayerView, SharedState, TrackTable, TRACKS_TABLE_VIEW_SELECTOR};
 
 use std::fs;
+use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use cursive::traits::*;
 use cursive::CursiveRunnable;
 use rodio::OutputStream;
+use walkdir::WalkDir;
 
 struct Interface {
     siv: CursiveRunnable,
@@ -17,6 +20,7 @@ pub struct Player {
     // We need to hold the stream to prevent it from being dropped, even if we don't access it otherwise
     // See https://github.com/RustAudio/rodio/issues/525
     _stream: OutputStream,
+    library_root: PathBuf,
     ui: Interface,
 }
 
@@ -56,6 +60,7 @@ impl Player {
 
         let mut player = Player {
             _stream: stream,
+            library_root: PathBuf::from_str(".").unwrap(),
             ui: Interface { siv },
         };
 
@@ -66,7 +71,27 @@ impl Player {
         Ok(player)
     }
 
-    pub fn import_tracks(&mut self, tracks: Vec<Track>) -> Result<()> {
+    pub fn set_library_root(&mut self, dir: &PathBuf) {
+        self.library_root = dir.to_owned();
+    }
+
+    fn import_tracks(&mut self) -> Result<()> {
+        let mut path = dirs::cache_dir().expect("Missing cache dir?");
+        path.push("minim");
+        path.push("library.csv");
+
+        let tracks;
+        if let Ok(t) = crate::cache::read_cache(&path) {
+            tracks = t;
+        } else {
+            let files = WalkDir::new(&self.library_root)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|f| f.file_type().is_file());
+
+            tracks = files.flat_map(|f| Track::try_from(f.path())).collect();
+        }
+
         let siv = &mut self.ui.siv;
 
         siv.call_on(&TRACKS_TABLE_VIEW_SELECTOR, |s: &mut TrackTable| {
@@ -114,6 +139,8 @@ impl Player {
             fs::create_dir_all(&path)?;
         }
         path.push("library.csv");
+
+        self.import_tracks()?;
 
         self.ui.siv.run();
 
