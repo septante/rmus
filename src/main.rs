@@ -1,7 +1,7 @@
-use clap::Parser;
-use minim::{Args, Player};
-
 use anyhow::Result;
+use clap::Parser;
+
+use minim::{Args, Player};
 
 fn main() -> Result<()> {
     let args = Args::parse();

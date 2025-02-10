@@ -1,5 +1,3 @@
-use crate::files::{CachedField, Track, WrappedSource};
-
 use std::{
     fs,
     io::BufReader,
@@ -16,6 +14,8 @@ use cursive_table_view::{TableView, TableViewItem};
 use cursive_tabs::TabPanel;
 use lofty::tag::ItemKey;
 use rodio::Sink;
+
+use crate::files::{CachedField, Track, WrappedSource};
 
 pub(crate) const TRACKS_TABLE_VIEW_SELECTOR: Selector = Selector::Name("tracks");
 pub(crate) const QUEUE_VIEW_SELECTOR: Selector = Selector::Name("queue_list");

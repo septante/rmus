@@ -1,8 +1,8 @@
 use std::{fs, path::PathBuf};
 
-use crate::files::Track;
-
 use anyhow::Result;
+
+use crate::files::Track;
 
 pub(crate) fn read_cache(path: &PathBuf) -> Result<Vec<Track>> {
     let file = fs::File::open(path)?;

@@ -1,6 +1,3 @@
-use crate::files::Track;
-use crate::views::{PlayerView, SharedState, TrackTable, TRACKS_TABLE_VIEW_SELECTOR};
-
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -12,6 +9,9 @@ use cursive::traits::*;
 use cursive::CursiveRunnable;
 use rodio::OutputStream;
 use walkdir::WalkDir;
+
+use crate::files::Track;
+use crate::views::{PlayerView, SharedState, TrackTable, TRACKS_TABLE_VIEW_SELECTOR};
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
