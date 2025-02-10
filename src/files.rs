@@ -83,10 +83,13 @@ impl Metadata {
 }
 
 #[non_exhaustive]
-#[derive(Clone, Debug)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct Track {
     pub(crate) path: PathBuf,
-    pub(crate) metadata: Metadata,
+    title: Option<String>,
+    artist: Option<String>,
+    album: Option<String>,
+    duration: u64,
 }
 
 impl PartialEq for Track {
@@ -107,7 +110,7 @@ impl Track {
     pub(crate) fn cached_field_string(&self, field: CachedField) -> String {
         match field {
             CachedField::Title => {
-                if let Some(title) = self.metadata.title.clone() {
+                if let Some(title) = self.title.clone() {
                     title
                 } else {
                     self.path
@@ -117,11 +120,11 @@ impl Track {
                         .into_owned()
                 }
             }
-            CachedField::Artist => self.metadata.artist.clone().unwrap_or_default(),
+            CachedField::Artist => self.artist.clone().unwrap_or_default(),
             CachedField::Duration => {
-                let secs = self.metadata.duration.as_secs();
+                let secs = self.duration;
                 let mins = secs / 60;
-                let secs = secs - mins * 60;
+                let secs = secs % 60;
                 format!("{mins}:{:0>2}", secs)
             }
             _ => {
@@ -180,13 +183,15 @@ impl TryFrom<PathBuf> for Track {
 
         let properties = tagged_file.properties();
 
-        let mut metadata = Metadata::new();
-
-        metadata.title = Metadata::tag_to_string(tag.title());
-        metadata.artist = Metadata::tag_to_string(tag.artist());
-        metadata.duration = properties.duration();
-
-        Ok(Track { path, metadata })
+        Ok({
+            Track {
+                path,
+                title: Metadata::tag_to_string(tag.title()),
+                artist: Metadata::tag_to_string(tag.artist()),
+                album: Metadata::tag_to_string(tag.album()),
+                duration: properties.duration().as_secs(),
+            }
+        })
     }
 }
 
@@ -206,7 +211,7 @@ impl TableViewItem<CachedField> for Track {
                     .to_lowercase()
                     .cmp(&other.cached_field_string(column).to_lowercase())
             }
-            CachedField::Duration => self.metadata.duration.cmp(&other.metadata.duration),
+            CachedField::Duration => self.duration.cmp(&other.duration),
             // Don't bother sorting on anything else, since we don't show those columns
             _ => cmp::Ordering::Equal,
         }

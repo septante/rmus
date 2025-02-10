@@ -176,6 +176,7 @@ impl ViewWrapper for LibraryView {
 #[derive(Clone)]
 pub(crate) struct SharedState {
     pub(crate) sink: Arc<Sink>,
+    pub(crate) tracks: Arc<Mutex<Vec<Track>>>,
     pub(crate) queue: Arc<Mutex<Vec<Track>>>,
     pub(crate) queue_index: Arc<Mutex<usize>>,
 }
@@ -184,6 +185,7 @@ impl SharedState {
     pub(crate) fn new(sink: Arc<Sink>) -> Self {
         Self {
             sink,
+            tracks: Arc::new(Mutex::new(Vec::new())),
             queue: Arc::new(Mutex::new(Vec::new())),
             queue_index: Arc::new(Mutex::new(0)),
         }

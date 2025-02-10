@@ -15,6 +15,6 @@ fn main() -> Result<()> {
 
     let mut player = Player::new()?;
     player.import_tracks(tracks)?;
-    player.start();
+    player.run()?;
     Ok(())
 }

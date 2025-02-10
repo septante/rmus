@@ -1,6 +1,7 @@
 use crate::files::Track;
 use crate::views::{PlayerView, SharedState, TrackTable, TRACKS_TABLE_VIEW_SELECTOR};
 
+use std::fs;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
@@ -49,6 +50,7 @@ impl Player {
             sink.skip_one();
             *state.queue_index.lock().unwrap() += 1;
         });
+        siv.set_user_data(shared_state.clone());
 
         siv.set_fps(10);
 
@@ -65,12 +67,15 @@ impl Player {
     }
 
     pub fn import_tracks(&mut self, tracks: Vec<Track>) -> Result<()> {
-        self.ui
-            .siv
-            .call_on(&TRACKS_TABLE_VIEW_SELECTOR, |s: &mut TrackTable| {
-                s.set_items(tracks);
-            })
-            .ok_or(anyhow!("Couldn't find tracks view while importing files?"))?;
+        let siv = &mut self.ui.siv;
+
+        siv.call_on(&TRACKS_TABLE_VIEW_SELECTOR, |s: &mut TrackTable| {
+            s.set_items(tracks.clone());
+        })
+        .ok_or(anyhow!("Couldn't find tracks view while importing files?"))?;
+
+        let state = siv.user_data::<SharedState>().expect("Missing state?");
+        *state.tracks.lock().unwrap() = tracks;
         Ok(())
     }
 
@@ -102,7 +107,22 @@ impl Player {
         err.context("Failed to load default theme")
     }
 
-    pub fn start(&mut self) {
+    pub fn run(&mut self) -> Result<()> {
+        let mut path = dirs::cache_dir().expect("Missing cache dir?");
+        path.push("minim");
+        if !fs::exists(&path)? {
+            fs::create_dir_all(&path)?;
+        }
+        path.push("library.csv");
+
         self.ui.siv.run();
+
+        // Cleanup
+        let state = self.ui.siv.user_data::<SharedState>().unwrap();
+        let tracks = state.tracks.lock().unwrap().clone();
+
+        crate::cache::write_cache(&path, tracks)?;
+
+        Ok(())
     }
 }
