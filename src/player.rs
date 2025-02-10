@@ -43,19 +43,11 @@ impl Player {
             rodio::OutputStream::try_default().context("Error opening rodio output stream")?;
         let sink = rodio::Sink::try_new(&handle).context("Error creating new sink")?;
         let shared_sink = Arc::new(sink);
-        let mut siv = cursive::default();
         let shared_state = SharedState::new(shared_sink.clone());
 
-        let player_view = PlayerView::new(shared_state.clone());
-
-        let library_root;
-        if let Some(ref dir) = args.dir {
-            library_root = PathBuf::from_str(dir).expect("Shouldn't fail");
-        } else {
-            library_root = dirs::audio_dir().ok_or(anyhow!("Couldn't find music folder"))?;
-        }
-
-        siv.add_fullscreen_layer(player_view.with_name("player").full_screen());
+        let mut siv = cursive::default();
+        siv.set_user_data(shared_state.clone());
+        siv.set_fps(10);
 
         siv.add_global_callback('q', |s| s.quit());
 
@@ -79,9 +71,15 @@ impl Player {
             });
         }
 
-        siv.set_user_data(shared_state.clone());
+        let player_view = PlayerView::new(shared_state.clone());
+        siv.add_fullscreen_layer(player_view.with_name("player").full_screen());
 
-        siv.set_fps(10);
+        let library_root;
+        if let Some(ref dir) = args.dir {
+            library_root = PathBuf::from_str(dir).expect("Shouldn't fail");
+        } else {
+            library_root = dirs::audio_dir().ok_or(anyhow!("Couldn't find music folder"))?;
+        }
 
         let mut player = Player {
             _stream: stream,
