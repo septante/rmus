@@ -64,27 +64,8 @@ impl TryFrom<CachedField> for ItemKey {
 }
 
 #[non_exhaustive]
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub(crate) struct Metadata {
-    title: Option<String>,
-    artist: Option<String>,
-    album: Option<String>,
-    duration: Duration,
-}
-
-impl Metadata {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    fn tag_to_string(tag: Option<Cow<str>>) -> Option<String> {
-        tag.as_deref().map(|x| x.to_owned())
-    }
-}
-
-#[non_exhaustive]
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
-pub struct Track {
+pub(crate) struct Track {
     pub(crate) path: PathBuf,
     title: Option<String>,
     artist: Option<String>,
@@ -107,6 +88,10 @@ impl std::hash::Hash for Track {
 }
 
 impl Track {
+    fn tag_to_string(tag: Option<Cow<str>>) -> Option<String> {
+        tag.as_deref().map(|x| x.to_owned())
+    }
+
     pub(crate) fn cached_field_string(&self, field: CachedField) -> String {
         match field {
             CachedField::Title => {
@@ -186,9 +171,9 @@ impl TryFrom<PathBuf> for Track {
         Ok({
             Track {
                 path,
-                title: Metadata::tag_to_string(tag.title()),
-                artist: Metadata::tag_to_string(tag.artist()),
-                album: Metadata::tag_to_string(tag.album()),
+                title: Self::tag_to_string(tag.title()),
+                artist: Self::tag_to_string(tag.artist()),
+                album: Self::tag_to_string(tag.album()),
                 duration: properties.duration().as_secs(),
             }
         })
