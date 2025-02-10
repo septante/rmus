@@ -7,6 +7,7 @@ license = "AGPL-3.0-only"
 
 [dependencies]
 anyhow = "1.0.95"
+clap = { version = "4.5.28", features = ["derive"] }
 csv = "1.3.1"
 cursive = { version = "0.21", features = ["toml"] }
 cursive-tabs = "0.8.0"

@@ -7,10 +7,19 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
+use clap::Parser;
 use cursive::traits::*;
 use cursive::CursiveRunnable;
 use rodio::OutputStream;
 use walkdir::WalkDir;
+
+#[derive(Parser, Debug)]
+#[command(version, about)]
+pub struct Args {
+    /// Reset library cache
+    #[arg(short = 'c', long = "clean")]
+    disable_cache: bool,
+}
 
 struct Interface {
     siv: CursiveRunnable,
@@ -20,12 +29,13 @@ pub struct Player {
     // We need to hold the stream to prevent it from being dropped, even if we don't access it otherwise
     // See https://github.com/RustAudio/rodio/issues/525
     _stream: OutputStream,
+    args: Args,
     library_root: PathBuf,
     ui: Interface,
 }
 
 impl Player {
-    pub fn new() -> Result<Self> {
+    pub fn new(args: Args) -> Result<Self> {
         let (stream, handle) =
             rodio::OutputStream::try_default().context("Error opening rodio output stream")?;
         let sink = rodio::Sink::try_new(&handle).context("Error creating new sink")?;
@@ -60,6 +70,7 @@ impl Player {
 
         let mut player = Player {
             _stream: stream,
+            args,
             library_root: PathBuf::from_str(".").unwrap(),
             ui: Interface { siv },
         };
@@ -75,21 +86,29 @@ impl Player {
         self.library_root = dir.to_owned();
     }
 
-    fn import_tracks(&mut self) -> Result<()> {
+    fn get_tracks_from_disk(&self) -> Vec<Track> {
+        let files = WalkDir::new(&self.library_root)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|f| f.file_type().is_file());
+
+        files.flat_map(|f| Track::try_from(f.path())).collect()
+    }
+
+    fn import_metadata(&mut self) -> Result<()> {
         let mut path = dirs::cache_dir().expect("Missing cache dir?");
         path.push("minim");
         path.push("library.csv");
 
         let tracks;
-        if let Ok(t) = crate::cache::read_cache(&path) {
-            tracks = t;
+        if !self.args.disable_cache {
+            if let Ok(t) = crate::cache::read_cache(&path) {
+                tracks = t;
+            } else {
+                tracks = self.get_tracks_from_disk();
+            }
         } else {
-            let files = WalkDir::new(&self.library_root)
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|f| f.file_type().is_file());
-
-            tracks = files.flat_map(|f| Track::try_from(f.path())).collect();
+            tracks = self.get_tracks_from_disk();
         }
 
         let siv = &mut self.ui.siv;
@@ -140,7 +159,7 @@ impl Player {
         }
         path.push("library.csv");
 
-        self.import_tracks()?;
+        self.import_metadata()?;
 
         self.ui.siv.run();
 
