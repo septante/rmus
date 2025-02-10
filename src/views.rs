@@ -16,8 +16,8 @@ use cursive_table_view::{TableView, TableViewItem};
 use cursive_tabs::TabPanel;
 use rodio::Sink;
 
-pub(crate) static TRACKS_TABLE_VIEW_SELECTOR: Selector = Selector::Name("tracks");
-pub(crate) static QUEUE_VIEW_SELECTOR: Selector = Selector::Name("queue_list");
+pub(crate) const TRACKS_TABLE_VIEW_SELECTOR: Selector = Selector::Name("tracks");
+pub(crate) const QUEUE_VIEW_SELECTOR: Selector = Selector::Name("queue_list");
 
 pub(crate) type TrackTable = TableView<Track, Field>;
 
