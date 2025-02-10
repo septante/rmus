@@ -152,6 +152,7 @@ impl TableViewItem<QueueField> for QueueEntry {
 
 struct LibrarySidebarView {
     inner: NamedPanel<QueueTable>,
+    state: SharedState,
 }
 
 impl LibrarySidebarView {
@@ -162,7 +163,10 @@ impl LibrarySidebarView {
 
         let panel = Panel::new(table.with_name("queue_list"));
 
-        Self { inner: panel }
+        Self {
+            inner: panel,
+            state,
+        }
     }
 
     cursive::inner_getters!(self.inner: NamedPanel<QueueTable>);
