@@ -26,6 +26,25 @@ type ScrollNamedText = ScrollView<NamedView<TextView>>;
 type NamedPanel<T> = Panel<NamedView<T>>;
 type QueueTable = TableView<QueueEntry, QueueField>;
 
+#[derive(Clone)]
+pub(crate) struct SharedState {
+    pub(crate) sink: Arc<Sink>,
+    pub(crate) tracks: Arc<Mutex<Vec<Track>>>,
+    pub(crate) queue: Arc<Mutex<Vec<Track>>>,
+    pub(crate) queue_index: Arc<Mutex<usize>>,
+}
+
+impl SharedState {
+    pub(crate) fn new(sink: Arc<Sink>) -> Self {
+        Self {
+            sink,
+            tracks: Arc::new(Mutex::new(Vec::new())),
+            queue: Arc::new(Mutex::new(Vec::new())),
+            queue_index: Arc::new(Mutex::new(0)),
+        }
+    }
+}
+
 struct LibraryTracksView {
     inner: NamedPanel<TrackTable>,
 }
@@ -53,15 +72,18 @@ impl LibraryTracksView {
 
                 // TODO: handle case where file is removed while player is running, e.g., by prompting user to remove
                 // from library view. This could be useful if we ever switch to persisting the library in a database
-                let file = fs::File::open(track.path.clone())
+                let file = fs::File::open(&track.path)
                     .expect("Path should be valid, since we imported these files at startup");
 
                 // Add song to queue. TODO: display error message when attempting to open an unsupported file
                 if let Ok(decoder) = rodio::Decoder::new(BufReader::new(file)) {
+                    {
+                        queue.lock().unwrap().push(track.clone());
+                    }
+
                     let source = WrappedSource::new(decoder, move || {
                         *queue_index.lock().unwrap() += 1;
                     });
-                    queue.lock().unwrap().push(track.clone());
                     state.sink.append(source);
 
                     valid_file = true;
@@ -70,7 +92,7 @@ impl LibraryTracksView {
             .expect("tracks view must exist");
 
             if valid_file {
-                // Add to queue list
+                // Add to queue list view
                 siv.call_on(&QUEUE_VIEW_SELECTOR, |v: &mut QueueTable| {
                     let queue = queue.lock().unwrap();
                     v.insert_item(QueueEntry {
@@ -103,7 +125,6 @@ struct QueueEntry {
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum QueueField {
     Index,
-
     Track,
 }
 
@@ -173,25 +194,6 @@ impl ViewWrapper for LibraryView {
     cursive::wrap_impl!(self.inner: LinearLayout);
 }
 
-#[derive(Clone)]
-pub(crate) struct SharedState {
-    pub(crate) sink: Arc<Sink>,
-    pub(crate) tracks: Arc<Mutex<Vec<Track>>>,
-    pub(crate) queue: Arc<Mutex<Vec<Track>>>,
-    pub(crate) queue_index: Arc<Mutex<usize>>,
-}
-
-impl SharedState {
-    pub(crate) fn new(sink: Arc<Sink>) -> Self {
-        Self {
-            sink,
-            tracks: Arc::new(Mutex::new(Vec::new())),
-            queue: Arc::new(Mutex::new(Vec::new())),
-            queue_index: Arc::new(Mutex::new(0)),
-        }
-    }
-}
-
 struct LyricsView {
     state: SharedState,
     content: TextContent,
@@ -218,13 +220,16 @@ impl ViewWrapper for LyricsView {
     cursive::wrap_impl!(self.inner: ScrollNamedText);
 
     fn wrap_draw(&self, printer: &cursive::Printer) {
-        let queue = self.state.queue.lock().unwrap();
         let mut content = String::new();
 
-        if let Some(track) = queue.get(*self.state.queue_index.lock().unwrap()) {
-            content = track
-                .tag_string_from_track(ItemKey::Lyrics)
-                .unwrap_or_default();
+        {
+            let queue = self.state.queue.lock().unwrap();
+
+            if let Some(track) = queue.get(*self.state.queue_index.lock().unwrap()) {
+                content = track
+                    .tag_string_from_track(ItemKey::Lyrics)
+                    .unwrap_or_default();
+            }
         }
 
         self.content.set_content(content);

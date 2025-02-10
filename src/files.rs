@@ -129,8 +129,6 @@ impl Track {
     pub(crate) fn tag_string_from_track(&self, key: ItemKey) -> Result<String> {
         let tagged_file = Probe::open(&self.path)?.read()?;
 
-        // Try to get primary tag, then try to find the first tag, otherwise
-        // generate an empty tag if none exist
         let tag = tagged_file
             .primary_tag()
             .or_else(|| tagged_file.first_tag())

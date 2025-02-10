@@ -124,8 +124,10 @@ impl Player {
         })
         .ok_or(anyhow!("Couldn't find tracks view while importing files?"))?;
 
-        let state = siv.user_data::<SharedState>().expect("Missing state?");
-        *state.tracks.lock().unwrap() = tracks;
+        {
+            let state = siv.user_data::<SharedState>().expect("Missing state?");
+            *state.tracks.lock().unwrap() = tracks;
+        }
         Ok(())
     }
 
@@ -169,12 +171,13 @@ impl Player {
 
         self.ui.siv.run();
 
-        // Cleanup
+        // Write state out
         let state = self.ui.siv.user_data::<SharedState>().unwrap();
-        let tracks = state.tracks.lock().unwrap().clone();
-
+        let tracks;
+        {
+            tracks = state.tracks.lock().unwrap().clone();
+        }
         crate::cache::write_cache(&path, tracks)?;
-
         Ok(())
     }
 }
