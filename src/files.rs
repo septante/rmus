@@ -1,62 +1,84 @@
 use std::borrow::Cow;
+use std::cmp;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use std::{cmp, fmt};
 
+use anyhow::{anyhow, Error, Result};
 use cursive_table_view::TableViewItem;
 use lofty::prelude::*;
 use lofty::probe::Probe;
-use lofty::properties::FileProperties;
-use lofty::tag::Tag;
 use rodio::{Sample, Source};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub(crate) enum Field {
+    Cached { field: CachedField },
+    Tag { key: ItemKey },
+}
 
 #[non_exhaustive]
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum Field {
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub(crate) enum CachedField {
     Title,
     Artist,
+    Album,
+    Year,
+    Genre,
     Duration,
-    Lyrics,
+}
+
+impl TryFrom<ItemKey> for CachedField {
+    type Error = Error;
+
+    fn try_from(key: ItemKey) -> Result<Self, Self::Error> {
+        match key {
+            ItemKey::TrackTitle => Ok(Self::Title),
+            ItemKey::TrackArtist => Ok(Self::Artist),
+            // ItemKey::TrackArtists => todo!(),
+            ItemKey::AlbumTitle => Ok(Self::Album),
+            // ItemKey::AlbumArtist => todo!(),
+            // ItemKey::DiscNumber => todo!(),
+            // ItemKey::DiscTotal => todo!(),
+            // ItemKey::TrackNumber => todo!(),
+            // ItemKey::TrackTotal => todo!(),
+            ItemKey::Year => Ok(Self::Year),
+            ItemKey::Genre => Ok(Self::Genre),
+            _ => Err(anyhow!("Unsupported field")),
+        }
+    }
+}
+
+impl TryFrom<CachedField> for ItemKey {
+    type Error = Error;
+
+    fn try_from(field: CachedField) -> std::result::Result<Self, Self::Error> {
+        match field {
+            CachedField::Title => Ok(ItemKey::TrackTitle),
+            CachedField::Artist => Ok(ItemKey::TrackArtist),
+            CachedField::Album => Ok(ItemKey::AlbumTitle),
+            CachedField::Year => Ok(ItemKey::Year),
+            CachedField::Genre => Ok(ItemKey::Genre),
+            _ => Err(anyhow!("Unsupported field")),
+        }
+    }
 }
 
 #[non_exhaustive]
-#[derive(Clone)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub(crate) struct Metadata {
-    tag: Tag,
-    properties: FileProperties,
-}
-
-impl fmt::Debug for Metadata {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Metadata")
-            .field("title", &self.tag.title())
-            .field("artist", &self.tag.artist())
-            .finish_non_exhaustive()
-    }
+    title: Option<String>,
+    artist: Option<String>,
+    album: Option<String>,
+    duration: Duration,
 }
 
 impl Metadata {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     fn tag_to_string(tag: Option<Cow<str>>) -> Option<String> {
         tag.as_deref().map(|x| x.to_owned())
-    }
-
-    pub(crate) fn title(&self) -> Option<String> {
-        Self::tag_to_string(self.tag.title())
-    }
-
-    pub(crate) fn artist(&self) -> Option<String> {
-        Self::tag_to_string(self.tag.artist())
-    }
-
-    pub(crate) fn duration(&self) -> Duration {
-        self.properties.duration()
-    }
-
-    pub(crate) fn lyrics(&self) -> String {
-        self.tag
-            .get_string(&ItemKey::Lyrics)
-            .unwrap_or_default()
-            .to_owned()
     }
 }
 
@@ -82,10 +104,10 @@ impl std::hash::Hash for Track {
 }
 
 impl Track {
-    pub(crate) fn field_string(&self, field: Field) -> String {
+    pub(crate) fn cached_field_string(&self, field: CachedField) -> String {
         match field {
-            Field::Title => {
-                if let Some(title) = self.metadata.title() {
+            CachedField::Title => {
+                if let Some(title) = self.metadata.title.clone() {
                     title
                 } else {
                     self.path
@@ -95,17 +117,41 @@ impl Track {
                         .into_owned()
                 }
             }
-            Field::Artist => self.metadata.artist().unwrap_or_default(),
-            Field::Duration => {
-                let secs = self.metadata.duration().as_secs();
+            CachedField::Artist => self.metadata.artist.clone().unwrap_or_default(),
+            CachedField::Duration => {
+                let secs = self.metadata.duration.as_secs();
                 let mins = secs / 60;
                 let secs = secs - mins * 60;
                 format!("{mins}:{:0>2}", secs)
             }
-            Field::Lyrics => self.metadata.lyrics(),
-            #[allow(unreachable_patterns)]
-            _ => "".to_owned(),
+            _ => {
+                if let Ok(key) = field.try_into() {
+                    if let Ok(s) = self.tag_string_from_track(key) {
+                        s
+                    } else {
+                        "".to_owned()
+                    }
+                } else {
+                    "".to_owned()
+                }
+            }
         }
+    }
+
+    pub(crate) fn tag_string_from_track(&self, key: ItemKey) -> Result<String> {
+        let tagged_file = Probe::open(&self.path)?.read()?;
+
+        // Try to get primary tag, then try to find the first tag, otherwise
+        // generate an empty tag if none exist
+        let tag = tagged_file
+            .primary_tag()
+            .or_else(|| tagged_file.first_tag())
+            .ok_or(anyhow!("Couldn't"))?;
+
+        Ok(tag
+            .get_string(&key)
+            .ok_or(anyhow!("Couldn't find tag"))?
+            .to_owned())
     }
 }
 
@@ -127,40 +173,40 @@ impl TryFrom<PathBuf> for Track {
 
         // Try to get primary tag, then try to find the first tag, otherwise
         // generate an empty tag if none exist
-        let tag = if let Some(primary_tag) = tagged_file.primary_tag() {
-            primary_tag.to_owned()
-        } else if let Some(tag) = tagged_file.first_tag() {
-            tag.to_owned()
-        } else {
-            Tag::new(tagged_file.file_type().primary_tag_type())
-        };
+        let tag = tagged_file
+            .primary_tag()
+            .or_else(|| tagged_file.first_tag())
+            .ok_or(anyhow!("Couldn't find tags from file"))?;
 
-        let properties = tagged_file.properties().to_owned();
+        let properties = tagged_file.properties();
 
-        Ok(Track {
-            path,
-            metadata: Metadata { tag, properties },
-        })
+        let mut metadata = Metadata::new();
+
+        metadata.title = Metadata::tag_to_string(tag.title());
+        metadata.artist = Metadata::tag_to_string(tag.artist());
+        metadata.duration = properties.duration();
+
+        Ok(Track { path, metadata })
     }
 }
 
-impl TableViewItem<Field> for Track {
-    fn to_column(&self, column: Field) -> String {
-        self.field_string(column)
+impl TableViewItem<CachedField> for Track {
+    fn to_column(&self, column: CachedField) -> String {
+        self.cached_field_string(column)
     }
 
-    fn cmp(&self, other: &Self, column: Field) -> std::cmp::Ordering
+    fn cmp(&self, other: &Self, column: CachedField) -> std::cmp::Ordering
     where
         Self: Sized,
     {
         match column {
-            Field::Title | Field::Artist => {
+            CachedField::Title | CachedField::Artist => {
                 // TODO: Clean this up? Sort None values to the bottom
-                self.field_string(column)
+                self.cached_field_string(column)
                     .to_lowercase()
-                    .cmp(&other.field_string(column).to_lowercase())
+                    .cmp(&other.cached_field_string(column).to_lowercase())
             }
-            Field::Duration => self.metadata.duration().cmp(&other.metadata.duration()),
+            CachedField::Duration => self.metadata.duration.cmp(&other.metadata.duration),
             // Don't bother sorting on anything else, since we don't show those columns
             _ => cmp::Ordering::Equal,
         }

@@ -1,4 +1,4 @@
-use crate::files::{Field, Track, WrappedSource};
+use crate::files::{CachedField, Track, WrappedSource};
 
 use std::{
     fs,
@@ -14,12 +14,13 @@ use cursive::{
 };
 use cursive_table_view::{TableView, TableViewItem};
 use cursive_tabs::TabPanel;
+use lofty::tag::ItemKey;
 use rodio::Sink;
 
 pub(crate) const TRACKS_TABLE_VIEW_SELECTOR: Selector = Selector::Name("tracks");
 pub(crate) const QUEUE_VIEW_SELECTOR: Selector = Selector::Name("queue_list");
 
-pub(crate) type TrackTable = TableView<Track, Field>;
+pub(crate) type TrackTable = TableView<Track, CachedField>;
 
 type ScrollNamedText = ScrollView<NamedView<TextView>>;
 type NamedPanel<T> = Panel<NamedView<T>>;
@@ -32,9 +33,9 @@ struct LibraryTracksView {
 impl LibraryTracksView {
     fn new(state: SharedState) -> Self {
         let mut table = TrackTable::new()
-            .column(Field::Artist, "Artist", |c| c)
-            .column(Field::Title, "Title", |c| c)
-            .column(Field::Duration, "Length", |c| c.width(10));
+            .column(CachedField::Artist, "Artist", |c| c)
+            .column(CachedField::Title, "Title", |c| c)
+            .column(CachedField::Duration, "Length", |c| c.width(10));
 
         table.set_on_submit(move |siv, _row, index| {
             let mut title = String::new();
@@ -48,7 +49,7 @@ impl LibraryTracksView {
                     .borrow_item(index)
                     .expect("Index given by submit event should always be valid");
 
-                title = track.field_string(Field::Title);
+                title = track.cached_field_string(CachedField::Title);
 
                 // TODO: handle case where file is removed while player is running, e.g., by prompting user to remove
                 // from library view. This could be useful if we ever switch to persisting the library in a database
@@ -110,7 +111,7 @@ impl TableViewItem<QueueField> for QueueEntry {
     fn to_column(&self, column: QueueField) -> String {
         match column {
             QueueField::Index => format!("{}", self.index),
-            QueueField::Track => self.track.field_string(Field::Title),
+            QueueField::Track => self.track.cached_field_string(CachedField::Title),
         }
     }
 
@@ -122,8 +123,8 @@ impl TableViewItem<QueueField> for QueueEntry {
             QueueField::Index => self.index.cmp(&other.index),
             QueueField::Track => self
                 .track
-                .field_string(Field::Title)
-                .cmp(&other.track.field_string(Field::Title)),
+                .cached_field_string(CachedField::Title)
+                .cmp(&other.track.cached_field_string(CachedField::Title)),
         }
     }
 }
@@ -219,7 +220,9 @@ impl ViewWrapper for LyricsView {
         let mut content = String::new();
 
         if let Some(track) = queue.get(*self.state.queue_index.lock().unwrap()) {
-            content = track.field_string(Field::Lyrics);
+            content = track
+                .tag_string_from_track(ItemKey::Lyrics)
+                .unwrap_or_default();
         }
 
         self.content.set_content(content);
