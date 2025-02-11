@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 mod cache;
 mod files;
 mod player;
