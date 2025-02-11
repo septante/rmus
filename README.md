@@ -9,3 +9,5 @@ A lightweight TUI music player.
 `p`: play/pause
 
 `q`: exit
+
+`n`: skip
