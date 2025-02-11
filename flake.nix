@@ -13,7 +13,12 @@
     ...
   }:
   let
-    overlays = [ (import rust-overlay) ];
+    overlays = [
+      (import rust-overlay)
+      (_: prev: {
+        rust-toolchain = prev.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+      })
+    ];
 
     systems = [
       "x86_64-linux"
@@ -22,12 +27,15 @@
     eachSystem = f:
       nixpkgs.lib.genAttrs systems
       (system: f { pkgs = import nixpkgs { inherit system overlays; }; });
+
+    version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
   in
   {
     devShells = eachSystem ({ pkgs }: with pkgs; {
       default = mkShell rec {
         buildInputs = [
-          rust-bin.stable.latest.default
+          # rust-bin.stable.latest.default
+          rust-toolchain
 
           # Needed for rodio to work with ALSA
           pkg-config
@@ -41,7 +49,7 @@
       default = rustPlatform.buildRustPackage {
         pname = "minim";
         src = ./.;
-        version = "0.1.0";
+        inherit version;
 
         cargoLock = {
           lockFile = ./Cargo.lock;
